@@ -2,6 +2,24 @@
 
 Updated October 24, 2026. Start with this file for current infrastructure state, then read `docs/PRODUCT_HANDOFF.md` for the product requirements and acceptance checks. This file supersedes older statements about unprovisioned databases, unsupported ESLint 10, and unverified deployment/model availability.
 
+## Runtime recheck — October 24, 2026
+
+This recheck supersedes the missing-variable observations below. The clean checkout was fast-forwarded from `5330795` to `926aa51` before inspection.
+
+- Attached configuration ID still matches `5bd94cbf-e7eb-4525-b415-818104f3e776~cecfg_6adcd6515928819ab6f67c6a862d7275`; current reported revision is **2**, executor `afe5c61a1d48`. The connector still does not expose the profile name, so the name `tz-trial` is not independently confirmed. Revision numbers across runtimes do not establish ordering or successful application.
+- All seven expected variables are now present in the process environment: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `DATABASE_MIGRATION_URL`, `AI_GATEWAY_API_KEY`, `AI_GATEWAY_MODEL`, `RCP_MCP_URL`, `RCP_MCP_TOKEN`. No `.env` or `.env.local` is present in the checked project/workspace/home locations. No secret-file bindings are reported. Use the inherited variables; do not recreate the historical local file or request secret values in chat.
+- Connector readiness and network enforcement remain **unknown**. Presence alone did not establish valid credentials or successful access.
+- Database URLs now target `ep-solitary-pine-b7cz50n4[-pooler].c-13.us-east-1.aws.neon.tech`, database `tz_chat`, with required TLS. These differ from the old preview endpoints. The intended branch mapping must be verified before writes; no migrations or application writes were attempted.
+- Node outbound requests need the cloud proxy enabled with `NODE_USE_ENV_PROXY=1`. Without it the Gateway call failed with `EAI_AGAIN`. Keep inherited proxy/CA settings; do not change production configuration merely for this cloud runtime.
+- **MCP:** authenticated initialization through `src/lib/mcp.ts` reaches `rcp.tazalabs.ai`, but receives **HTTP 401**. Tool discovery and schemas remain unverified. The expected base URL is present; the supplied token is rejected using the existing query-token contract. Verify the credential/contract securely with the service owner.
+- **Gateway:** a minimal generation through `src/lib/gateway.ts` reaches Gateway, but receives **HTTP 403**, with a billing/credit indication in the response. No successful generation was observed. Check account credit/billing rather than treating catalog availability as generation readiness.
+- **Neon:** the installed HTTP driver's default SQL destination is `api.c-13.us-east-1.aws.neon.tech`, not the connection-string hostname. That destination is absent from `/etc/codex/network-policy.json`. An HTTPS probe through the inherited proxy was rejected during CONNECT with **403**; the driver read failed before SQL could run. Add this destination through the supported environment settings workflow. Do not override the driver endpoint or bypass the proxy to avoid the policy.
+- No environment-switch or configuration-write tool is available in this session. No secrets, authenticated URLs, raw integration errors, or MCP payloads were added to repository files.
+
+Clean installation and `mise run ci` passed (formatting, lint, TypeScript, 9 tests, production build). The production shell was restarted with `NODE_USE_ENV_PROXY=1 mise run start`; `/` and `/api/health` returned HTTP 200, with `liveChat: false`. No browser or hosted integration was verified.
+
+The missing-secret injection problem is no longer reproduced. The next integration priority is the three concrete access blockers above, followed by the same read-only/schema discovery/minimal generation checks. A profile rename, restart alone, or another identical variable entry is not established as a fix. Private product endpoints remain closed pending end-user identity.
+
 ## Current checkpoint
 
 - Repository: `alexlopashev/tz-chat`, workspace `/workspace/tz-chat`. The local branch is `work`; previous changes were pushed to `main` using ordinary fast-forward pushes. No extra worktree is needed.
