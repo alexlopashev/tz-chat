@@ -43,3 +43,13 @@ Cloud configuration draft saved: install_script, start_skill, and custom network
 ## Product handoff and repository publication
 
 The user subsequently authorized pushing the foundation and requested a product-focused follow-up. `docs/PRODUCT_HANDOFF.md` captures the agreed stack, current boundaries, first usable product slice, acceptance scenarios, and remaining integration inputs. This documentation follow-up changes no application behavior. The push targets the existing `main` branch through a normal fast-forward; the connected Vercel project may initiate a build. A successful Git push is not proof of deployment success.
+
+## Deployment dependency maintenance
+
+`vercel.json` remains included in the formatting gate. Running the pinned Prettier on the committed file produces no changes; the reported Vercel formatting failure has not been reproduced locally.
+
+Direct dependencies were checked against the registry. They already use the latest stable versions compatible with Node 24 and the lint plugins; ESLint 10 and TypeScript 7 remain incompatible as described above. The lockfile was refreshed, and version-scoped overrides update Vercel CLI's pinned transitive dependencies within their existing major versions: Ajv, js-yaml, minimatch, path-to-regexp, smol-toml, tar, Undici and Zod. The Zod 4 override follows the application's exact Zod pin. Remove these overrides when upstream dependencies adopt the patched versions.
+
+The full audit fell from 33 findings (12 moderate, 20 high, 1 critical) to 16 (6 moderate, 10 high, 0 critical). Remaining findings originate in the latest Vercel CLI's Zod 3 and Undici 5 dependency trees, including Undici's multipart parser. Updating those to their latest versions within the same major does not clear the advisories. They need upstream fixes or a separately verified major migration; `npm audit fix --force` currently proposes downgrading Vercel CLI to 53.2.0. These findings remain unresolved.
+
+Validation: clean installation with npm 12.2.1 succeeded, followed by formatting, lint, type checking, all 9 tests and a production build. The production-only audit reports zero vulnerabilities. Vercel CLI's version and build help load with the overrides; this does not verify authenticated deployment or every CLI code path.
