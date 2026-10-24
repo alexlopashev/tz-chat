@@ -43,18 +43,19 @@ RCP token revocation is not pushed into the app: the browser session can remain 
 
 ## Database structure and conversation protection
 
-| Table               | Stored state and relationships                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `app_users`         | Stable verified RCP account ID and sign-in timestamps                                                                     |
-| `rcp_credentials`   | Encrypted token per sign-in, linked to `app_users`                                                                        |
-| `user_sessions`     | Hashed session ID, owner, credential, expiry and revocation; composite foreign key binds the credential to the same owner |
-| `conversations`     | UUID, owner ID, title, title source/revision, pin and timestamps                                                          |
-| `messages`          | Conversation and owner, sequence, request ID, role, rich SDK parts, status, generation ID and start time                  |
-| `datasets`          | Reserved snapshot schema; currently unused by the agent. Actual evidence is saved in `messages.parts_json`                |
-| `runtime_buckets`   | Shared per-account/global request-window counters                                                                         |
-| `runtime_leases`    | Active chat/title work with expiry for crash recovery                                                                     |
-| `runtime_circuits`  | Gateway/MCP failure counts, cooldowns and fenced recovery probes                                                          |
-| `schema_migrations` | Applied versions and content checksums                                                                                    |
+| Table               | Stored state and relationships                                                                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app_users`         | Stable verified RCP account ID and sign-in timestamps                                                                                                          |
+| `rcp_credentials`   | Encrypted token per sign-in, linked to `app_users`                                                                                                             |
+| `user_sessions`     | Hashed session ID, owner, credential, expiry and revocation; composite foreign key binds the credential to the same owner                                      |
+| `conversations`     | UUID, owner ID, title, title source/revision, pin and timestamps                                                                                               |
+| `messages`          | Conversation and owner, sequence, request ID, role, rich SDK parts, status, generation ID and start time                                                       |
+| `datasets`          | Reserved snapshot schema; currently unused by the agent. Actual evidence is saved in `messages.parts_json`                                                     |
+| `runtime_buckets`   | Shared per-account/global request-window counters                                                                                                              |
+| `runtime_leases`    | Active chat/title work with expiry for crash recovery                                                                                                          |
+| `runtime_circuits`  | Gateway/MCP failure counts, cooldowns and fenced recovery probes                                                                                               |
+| `model_usage`       | Owner-scoped usage ledger per research/title attempt, with per-step token counts, pricing snapshots, cost provenance and status; survives answer edits/retries |
+| `schema_migrations` | Applied versions and content checksums                                                                                                                         |
 
 Conversation ownership is enforced by authenticated, owner-scoped repository queries. Composite foreign keys prevent messages/datasets from claiming a different owner than their parent conversation. `conversations.owner_id` holds the verified account ID; it is not itself a foreign key to `app_users`. There is no database row-level-security policy: authorization depends on the backend query boundary and constraints. Application-level encryption covers MCP credentials; chat text and evidence are ordinary database records protected by access control, not individually encrypted by this application.
 
@@ -62,7 +63,7 @@ A short transaction locks the conversation row before reserving a user/assistant
 
 Editing the latest question checks its previous request ID, replaces that turn and reserves a new generation atomically. Older turns remain intact. There is no immutable edit history. Pending attempts older than two minutes become retryable as interrupted. These mechanisms prevent conflicting writes; they do not resume an interrupted model execution.
 
-User questions are persisted before generation. Assistant text, tool inputs/results and sources are saved together as SDK message parts at finalization, with `complete`, `failed` or `interrupted` status. A worker killed before finalization may lose streamed partial output and tool results. The pending row survives, allowing a later retry.
+User questions are persisted before generation. Assistant text, tool inputs/results and sources are saved together as SDK message parts at finalization, with `complete`, `failed` or `interrupted` status. Usage is also checkpointed after each completed model step in a separate attempt ledger. A worker killed before finalization may lose streamed partial output and tool results; the ledger retains completed-step measurements, while the interrupted call may have unreported usage. The pending row survives, allowing a later retry.
 
 Unsent drafts live separately in browser local storage, keyed by account and conversation, with a separate new-chat key. Text and valid edit context restore for up to 30 days and clear after server acceptance. Storage failures do not block chat. Drafts are local-device convenience data, not server history, cross-device synchronization or a credential store.
 
@@ -117,19 +118,39 @@ The history limit is character-based, not token-aware summarization. Stop reques
 
 Chat titles are separate model work. Automatic and manual generation use `generateText` with `openai/gpt-6-luna`, bounded question-only context, a 12-second timeout and 160 output tokens. Title revision checks prevent delayed generation from overwriting a newer manual change. Title generation does not provide memory for the research model.
 
-## Input caching and evidence reuse
+## Prompt caching and usage accounting
 
-| Mechanism                   | Current behavior                                                                                                                                                                                                                                                                                |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LLM input / prompt cache    | No explicit cache key, TTL, cache-control breakpoint or provider cache setting is configured. The full selected context is sent on every model request. A selected provider may automatically cache matching prefixes under its own rules; this app does not guarantee or measure that behavior |
-| Repeated prompt prefixes    | Instructions, tool definitions and earlier history can repeat across steps/turns. Date-dependent instructions, changed history/tool schemas and provider routing can affect prefix reuse                                                                                                        |
-| Cached-token accounting     | The app does not persist model usage or cache-read/write token metrics. It cannot currently report cache hit rates, savings or per-turn cost                                                                                                                                                    |
-| Saved tool evidence         | Prior tool inputs/results are replayed as history. Replay itself does not call MCP again. The model is instructed to reuse adequate evidence for presentation-only requests and retrieve fresh data for current facts/new ranges                                                                |
-| MCP response cache          | No application-level cache or request deduplication across separate turns. A fresh tool call reaches MCP; upstream caching is outside this application's control                                                                                                                                |
-| HTTP/browser response cache | Chat and private JSON responses use `Cache-Control: no-store`. This does not disable or configure provider-side prompt caching                                                                                                                                                                  |
-| Build cache                 | Vercel can reuse Next.js build artifacts. This is unrelated to model input caching or conversational memory                                                                                                                                                                                     |
+For GPT-6 and supported GPT-5.6+ model IDs, the AI SDK sends `openai.promptCacheOptions: { mode: "implicit", ttl: "30m" }` and `promptCacheKey`; these map to OpenAI's `prompt_cache_options` and `prompt_cache_key`. The stable system-instruction message also carries `promptCacheBreakpoint: { mode: "explicit", ttl: "30m" }`, retaining implicit conversation caching while marking the stable prefix. Older OpenAI model IDs receive a stable key with provider-default retention instead of incompatible modern options. Non-OpenAI models use Gateway automatic caching. Cache policy is configured in [`cache.ts`](../src/lib/agent/cache.ts).
 
-Saved conversations are the source of continuity, not a cache of model internals. Any provider prompt-cache benefit is a potential optimization, not a correctness dependency. To evaluate it, add per-step usage/cache-token metrics first, then configure provider-supported caching only if measurements justify it. Do not reuse responses across accounts or weaken ownership checks to increase cache hits.
+The key is a SHA-256 digest of prompt version, verified owner, conversation, model and work kind. It remains stable across turns, retries and sign-ins for that conversation, while research and titles have separate keys. It is also the Gateway `sessionId`, with `sessionAffinity: true` and `caching: "auto"`. The key is a routing/accounting hint, not an authorization mechanism or a provider-side conversation store. OpenAI `store: false` disables stored Responses state; it does not disable prompt caching or replace provider data-retention policies.
+
+Stable instructions come before a separate date-context message. Tool definitions are sorted by name and schema object keys are canonicalized. Saved history is replayed in order without rewriting prior turns; technical usage data is excluded from model context. Every model step still sends the full required context. Cache matching, minimum sizes, expiry and routing determine actual reuse; sending the options does not guarantee a hit.
+
+[OpenAI's caching guide](https://developers.openai.com/api/docs/guides/prompt-caching) describes modern cache controls and [Gateway session affinity](https://vercel.com/docs/ai-gateway/models-and-providers/session-affinity) describes routing. The installed Gateway forwards AI SDK provider options. No direct OpenAI credential or new dependency is required.
+
+### Response and conversation metadata
+
+`model_usage` records one row per execution attempt, including title work. The row is created before generation, updated at step start/end, and finalized on completion, error or interruption. Edits/retries create new attempts, so replacing an answer does not erase its historical cost. Queries are owner-scoped and a composite conversation/owner foreign key protects the parent relationship. A pending record older than two minutes is presented as interrupted.
+
+Each assistant response streams a safe usage summary as message metadata and saves a `data-usage` part for reload. It includes model/provider, elapsed time, call counts, cache policy, per-step usage and cost provenance. Raw provider metadata, credentials and request headers are not exposed. The AI SDK excludes this custom data part from model history. The bottom technical drawer totals the conversation across sign-ins, including title generation and superseded attempts; this is not a browser-login-session total.
+
+| Measurement              | Meaning                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Input                    | Total input tokens reported by the SDK                                                                                   |
+| Uncached input           | Non-cached input; distinct from cache-read/write tokens                                                                  |
+| Cache read / cache write | Provider-reported subsets of input, including cache creation when reported                                               |
+| Output                   | Total generated tokens, including reasoning; reasoning is also shown separately                                          |
+| Gateway-reported cost    | The per-step `providerMetadata.gateway.cost` in USD, preferred when available                                            |
+| Estimated cost           | Fallback using complete token categories and matching-model catalog rates captured at execution time; explicitly labeled |
+| Missing/partial usage    | Shown as not reported/partial, never assumed to be zero or free                                                          |
+
+Catalog rates come from `getAvailableModels()` and are cached in-process for ten minutes. They are **USD per token**; the UI displays them per million. The estimate is `uncached × input rate + cache reads × read rate + cache writes × write rate + output × output rate`. It is calculated only when the categories reconcile and required rates are available. Reasoning tokens are not charged twice. A changed routed model without a matching rate snapshot gets no catalog estimate. Reported Gateway cost takes precedence and can reflect provider-specific pricing that a base catalog estimate cannot.
+
+Only model costs are included, not MCP, Vercel hosting or Neon. Failed/aborted calls may not report usage; historical responses created before this feature cannot be backfilled. Completed-step accounting survives many interruptions, but the ledger is not an invoice or a durable background agent. Accounting-write failures are logged safely and marked on the response; they do not discard an otherwise valid answer. Live verification observed both cache writes and cache reads over a real MCP-backed conversation and its follow-up.
+
+### Other kinds of reuse
+
+Saved tool evidence is replayed as history without re-executing that call. The model can request fresh MCP data when needed; there is no cross-turn application MCP response cache. Private HTTP responses remain `no-store`. Vercel build caching is unrelated to model prompt caching, and neither cache replaces authorization or persistent conversation history.
 
 ## Shared reliability and abuse limits
 

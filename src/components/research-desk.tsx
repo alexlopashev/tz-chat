@@ -1,4 +1,6 @@
 "use client";
+import { ConversationMetadata, ResponseMetadata } from "./technical-metadata";
+import type { RunUsage } from "@/lib/usage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -15,11 +17,13 @@ import { ResearchWaiting } from "./research-waiting";
 type Selected = Conversation & { messages: SavedMessage[] };
 export function ResearchDesk({
   userId,
+  usage,
   conversations,
   selected,
   missing,
 }: {
   userId: string;
+  usage: RunUsage[];
   conversations: Conversation[];
   selected: Selected | null;
   missing: boolean;
@@ -179,6 +183,16 @@ export function ResearchDesk({
       }
     },
   });
+  const recordedRuns = new Map(usage.map((run) => [run.id, run]));
+  for (const message of messages) {
+    const run = message.metadata?.usage;
+    if (
+      run &&
+      (!recordedRuns.has(run.id) ||
+        recordedRuns.get(run.id)!.steps.length < run.steps.length)
+    )
+      recordedRuns.set(run.id, run);
+  }
   const responding =
     sending || status === "submitted" || status === "streaming";
   useEffect(() => {
@@ -470,6 +484,9 @@ export function ResearchDesk({
                         );
                       return null;
                     })}
+                    {message.role === "assistant" && (
+                      <ResponseMetadata run={message.metadata?.usage} />
+                    )}
                     {message.metadata?.status &&
                       message.metadata.status !== "complete" &&
                       !(responding && message.metadata.status === "pending") &&
@@ -632,6 +649,17 @@ export function ResearchDesk({
                   Reload response
                 </button>
               )}
+            <ConversationMetadata
+              runs={[...recordedRuns.values()]}
+              untracked={
+                messages.filter(
+                  (message) =>
+                    message.role === "assistant" &&
+                    !message.metadata?.usage &&
+                    message.metadata?.status !== "pending",
+                ).length
+              }
+            />
           </div>
         </section>
       </main>

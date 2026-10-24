@@ -1,3 +1,4 @@
+import type { RunUsage } from "./usage";
 import { randomUUID } from "node:crypto";
 import type { StoredMessage, MessageStatus } from "./chat-types";
 import type { UIMessage } from "ai";
@@ -31,6 +32,32 @@ export type SavedMessage = StoredMessage;
 
 export class Repository {
   constructor(private db: Database) {}
+  async startUsage(userId: string, conversationId: string, usage: RunUsage) {
+    await this.db.query(
+      "INSERT INTO model_usage(id,conversation_id,owner_id,kind,metadata_json) VALUES($1,$2,$3,$4,$5::jsonb)",
+      [usage.id, conversationId, userId, usage.kind, JSON.stringify(usage)],
+    );
+  }
+  async saveUsage(userId: string, conversationId: string, usage: RunUsage) {
+    await this.db.query(
+      "UPDATE model_usage SET metadata_json=$4::jsonb,status=$5,updated_at=now() WHERE id=$1 AND owner_id=$2 AND conversation_id=$3 AND status='pending'",
+      [usage.id, userId, conversationId, JSON.stringify(usage), usage.status],
+    );
+  }
+  async usage(userId: string, conversationId: string): Promise<RunUsage[]> {
+    const rows = await this.db.query<{
+      metadata_json: RunUsage;
+      stale: boolean;
+    }>(
+      "SELECT metadata_json,status='pending' AND updated_at<now()-interval '2 minutes' AS stale FROM model_usage WHERE owner_id=$1 AND conversation_id=$2 ORDER BY created_at,id",
+      [userId, conversationId],
+    );
+    return rows.map((row) =>
+      row.stale
+        ? { ...row.metadata_json, status: "interrupted" }
+        : row.metadata_json,
+    );
+  }
   async createSession(
     userId: string,
     hash: string,

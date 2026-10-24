@@ -6,7 +6,8 @@ import {
   type ToolSet,
 } from "ai";
 import type { ChatMessage, MessageStatus } from "../chat-types";
-import { researchInstructions } from "./prompt";
+import type { UsageRecorder } from "./accounting";
+import { researchPrompt } from "./prompt";
 
 export function safeAgentError(error: unknown) {
   const status =
@@ -35,6 +36,7 @@ export async function agentResponse(options: {
   close: () => Promise<void>;
   cancel: () => void;
   now?: Date;
+  accounting?: UsageRecorder;
   report?: (error?: unknown) => Promise<void>;
 }) {
   let errorMessage: string | undefined;
@@ -46,7 +48,17 @@ export async function agentResponse(options: {
     model: options.model,
     tools: options.tools,
     messages,
-    system: researchInstructions(options.now),
+    system: researchPrompt(
+      options.now,
+      options.accounting?.settings.modernOpenAI,
+    ),
+    providerOptions: options.accounting?.settings.providerOptions,
+    onStepStart: async ({ stepNumber }) => {
+      await options.accounting?.startStep(stepNumber);
+    },
+    onStepEnd: async (event) => {
+      await options.accounting?.step(event);
+    },
     maxOutputTokens: 3000,
     maxRetries: 0,
     stopWhen: stepCountIs(6),
@@ -68,18 +80,25 @@ export async function agentResponse(options: {
     onError: () =>
       errorMessage ??
       "The answer couldn't be completed. Your question is saved. Please try again.",
-    messageMetadata: ({ part }) =>
-      part.type === "start"
-        ? { status: "pending", requestId: options.requestId }
-        : part.type === "finish"
-          ? {
-              status:
-                errorMessage || part.finishReason !== "stop"
-                  ? "failed"
-                  : "complete",
-              requestId: options.requestId,
-            }
-          : undefined,
+    messageMetadata: ({ part }) => {
+      if (!["start", "finish-step", "finish", "abort"].includes(part.type))
+        return undefined;
+      const status =
+        part.type === "finish"
+          ? errorMessage || part.finishReason !== "stop"
+            ? "failed"
+            : "complete"
+          : part.type === "abort"
+            ? "interrupted"
+            : "pending";
+      return {
+        status,
+        requestId: options.requestId,
+        ...(options.accounting
+          ? { usage: options.accounting.snapshot(status) }
+          : {}),
+      };
+    },
     onEnd: async ({
       responseMessage,
       isAborted,
@@ -97,6 +116,11 @@ export async function agentResponse(options: {
             : "complete";
       if (isCancelled) options.cancel();
       const parts = [...responseMessage.parts];
+      if (options.accounting)
+        parts.push({
+          type: "data-usage",
+          data: await options.accounting.finish(status),
+        });
       if (status !== "complete")
         parts.push({
           type: "data-error",

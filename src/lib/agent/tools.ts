@@ -1,12 +1,15 @@
 import { jsonSchema, tool, type ToolSet, type JSONSchema7 } from "ai";
 import type { MCPClient } from "@ai-sdk/mcp";
+import { stableObject } from "./cache";
 import { normalizeEvidence, pollingToolNames } from "./evidence";
 
 export async function pollingTools(client: MCPClient, signal: AbortSignal) {
   const definitions = await client.listTools({ options: { timeout: 10_000 } });
   const tools: ToolSet = {};
   let calls = 0;
-  for (const definition of definitions.tools) {
+  for (const definition of [...definitions.tools].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  )) {
     if (!pollingToolNames.some((name) => name === definition.name)) continue;
     const schema = definition.inputSchema as JSONSchema7;
     const inputSchema = {
@@ -20,7 +23,9 @@ export async function pollingTools(client: MCPClient, signal: AbortSignal) {
     delete inputSchema.properties?.purpose_kind;
     tools[definition.name] = tool({
       description: definition.description,
-      inputSchema: jsonSchema<Record<string, unknown>>(inputSchema),
+      inputSchema: jsonSchema<Record<string, unknown>>(
+        stableObject(inputSchema),
+      ),
       execute: async (input) => {
         if (signal.aborted) throw new Error("Research was stopped.");
         if (++calls > 10)

@@ -1,3 +1,4 @@
+import { startUsage, type UsageRecorder } from "@/lib/agent/accounting";
 import { database } from "@/lib/database";
 import {
   SharedProtection,
@@ -38,6 +39,7 @@ export async function POST(
     | undefined;
   let client: Awaited<ReturnType<typeof connectPollingMcp>> | undefined;
   let streamOwnsClient = false;
+  let accounting: UsageRecorder | undefined;
 
   let release: (() => Promise<void>) | undefined;
   let finishGateway: ((outcome: Outcome) => Promise<void>) | undefined;
@@ -110,6 +112,14 @@ export async function POST(
       assistantId: turn.assistantId,
       generationId: turn.generationId,
     };
+    accounting = await startUsage(
+      repo,
+      session.user_id,
+      id,
+      model.modelId,
+      "chat",
+      turn.generationId,
+    );
     const saved = await repo.conversation(session.user_id, id);
     if (!saved) throw new HttpError(404, "Conversation not found.");
     const history = toChatMessages(
@@ -117,7 +127,14 @@ export async function POST(
         (message) => message.role === "user" || message.status === "complete",
       ),
     );
-    if (JSON.stringify(history).length > 350_000)
+    // Technical usage parts never enter the model prompt or its context budget.
+    const contextSize = JSON.stringify(
+      history.map(({ role, parts }) => ({
+        role,
+        parts: parts.filter((part) => part.type !== "data-usage"),
+      })),
+    ).length;
+    if (contextSize > 350_000)
       throw new HttpError(
         422,
         "This conversation has reached its research context limit. Start a new chat to continue.",
@@ -147,6 +164,7 @@ export async function POST(
     const response = await agentResponse({
       model,
       tools,
+      accounting,
       report: async (error) => {
         await finishGateway?.(
           error ? dependencyOutcome(error, signal) : "success",
@@ -189,12 +207,18 @@ export async function POST(
             : "The research service isn't available. Please try again shortly.";
     if (reserved && repo) {
       try {
+        const usage = await accounting?.finish(
+          signal.aborted ? "interrupted" : "failed",
+        );
         await repo.finishTurn(
           reserved.userId,
           reserved.conversationId,
           reserved.assistantId,
           reserved.generationId,
-          [{ type: "data-error", data: message }],
+          [
+            { type: "data-error", data: message },
+            ...(usage ? [{ type: "data-usage" as const, data: usage }] : []),
+          ],
           signal.aborted ? "interrupted" : "failed",
         );
       } catch {

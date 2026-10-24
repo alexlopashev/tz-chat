@@ -15,6 +15,8 @@ The RCP + AI launcher opens a resizable chat panel over a labeled landing-page m
 | Vercel AI Gateway | Authenticated model access for research and title generation                                   | [`src/lib/gateway.ts`](src/lib/gateway.ts)                                                                                                  |
 | Vercel AI SDK     | Browser streaming state, server model/tool loop and structured message parts                   | [`src/lib/agent`](src/lib/agent)                                                                                                            |
 
+Each response has a collapsed metadata drawer, and the bottom technical drawer totals input, cache-read/write and output tokens plus model cost for the conversation. Totals retain replaced/retried attempts and include title generation. OpenAI-compatible cache controls, a stable prompt prefix and Gateway session affinity support reuse; measured usage shows whether it occurred.
+
 Read [Architecture](docs/ARCHITECTURE.md) for authentication, database structure, per-turn execution, caching, reliability and memory extension points.
 
 ## Run locally
@@ -59,7 +61,7 @@ Vercel's native GitHub integration deploys `main` to production and branches/PRs
 
 The Neon project is `fancy-base-03274879`, database `tz_chat`, PostgreSQL 17 in AWS Northern Virginia. Environment separation depends on the configured database URL; a Vercel preview does not automatically create its own Neon branch. Do not share production credentials with untrusted previews.
 
-Migrations in [`db/migrations`](db/migrations) run explicitly with `mise run db:migrate`, never during deployment builds. The runner uses a transaction, advisory lock and checksum ledger. Apply all migrations, currently through `0005_protection`, before serving this version. Add new versioned migrations instead of modifying applied files.
+Migrations in [`db/migrations`](db/migrations) run explicitly with `mise run db:migrate`, never during deployment builds. The runner uses a transaction, advisory lock and checksum ledger. Apply all migrations, currently through `0006_model_usage`, before serving this version. Add new versioned migrations instead of modifying applied files.
 
 ## Checks and operations
 
@@ -78,6 +80,6 @@ Tests cover identity/session boundaries, ownership constraints, retry fencing, t
 
 ## Current limits
 
-This is a focused staging demo. History is replayed rather than summarized; long chats hit a context-size limit. There is no cross-chat user memory, durable background execution, stream reconnection, automated credential retention cleanup or measured prompt-cache hit rate. Shared chat/title limits do not protect anonymous sign-in or every inexpensive endpoint. The supplied website HTML was not integrated; the UI follows the supplied visual reference, and successful live iframe rendering is not guaranteed.
+This is a focused staging demo. History is replayed rather than summarized; long chats hit a context-size limit. There is no cross-chat user memory, durable background execution, stream reconnection or automated credential retention cleanup. Shared chat/title limits do not protect anonymous sign-in or every inexpensive endpoint. The supplied website HTML was not integrated; the UI follows the supplied visual reference, and successful live iframe rendering is not guaranteed.
 
 Before public launch, prioritize token-aware context management, operational metrics, provider-quota/load testing, edge abuse protection and data-retention controls. Detailed boundaries and extension points are in [Architecture](docs/ARCHITECTURE.md).

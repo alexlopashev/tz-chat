@@ -24,6 +24,7 @@ export default async function Home({
           ? `${selected.id}:${selected.messages.length}:${selected.messages.at(-1)?.status}`
           : "new"
       }
+      usage={selected ? await repo.usage(session.user_id, selected.id) : []}
       userId={session.user_id}
       conversations={conversations}
       selected={selected}

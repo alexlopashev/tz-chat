@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+vi.mock("server-only", () => ({}));
+import { UsageRecorder } from "../src/lib/agent/accounting";
+import type { Repository } from "../src/lib/repository";
 import { convertToModelMessages } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import type { MCPClient } from "@ai-sdk/mcp";
@@ -120,7 +123,17 @@ describe("Bounded polling agent (deterministic model, not live generation)", () 
     });
     const persist = vi.fn().mockResolvedValue(undefined),
       close = vi.fn().mockResolvedValue(undefined);
+    const accounting = new UsageRecorder(
+      { startUsage: vi.fn(), saveUsage: vi.fn() } as unknown as Repository,
+      "owner",
+      "conversation",
+      "openai/gpt-6.1-sol",
+      "chat",
+      null,
+    );
+    await accounting.start();
     const response = await agentResponse({
+      accounting,
       model,
       tools,
       history: [user()],
@@ -132,6 +145,18 @@ describe("Bounded polling agent (deterministic model, not live generation)", () 
       cancel: vi.fn(),
     });
     const wire = await response.text();
+    const finishPart = wire
+      .split("\n")
+      .filter((line) => line.startsWith("data: {"))
+      .map((line) => JSON.parse(line.slice(6)))
+      .find((part) => part.type === "finish");
+    expect(finishPart.messageMetadata.usage.steps).toHaveLength(2);
+    expect(finishPart.messageMetadata.usage.startedSteps).toBe(2);
+    expect(finishPart.messageMetadata.usage.toolCalls).toBe(1);
+    expect(accounting.snapshot().status).toBe("complete");
+    expect(model.doStreamCalls[0].providerOptions?.openai).toMatchObject({
+      promptCacheOptions: { mode: "implicit", ttl: "30m" },
+    });
     expect(wire).toContain("text-delta");
     expect(wire).toContain("tool-output-available");
     expect(model.doStreamCalls).toHaveLength(2);
