@@ -20,9 +20,12 @@ import {
 } from "@/lib/http";
 
 export async function POST(request: Request) {
+  let stage = "origin-check";
   try {
     assertSameOrigin(request);
+    stage = "encryption-key";
     const key = encryptionKey();
+    stage = "input-validation";
     const { token: input } = await readJson(
       request,
       z.object({ token: z.string().min(1).max(8192) }),
@@ -39,6 +42,7 @@ export async function POST(request: Request) {
         "Paste your full RCP MCP token. A Bearer prefix is optional.",
       );
     }
+    stage = "rcp-verification";
     let client;
     let userId: string;
     try {
@@ -66,6 +70,7 @@ export async function POST(request: Request) {
     } finally {
       await client?.close().catch(() => {});
     }
+    stage = "session-storage";
     const id = newSessionId();
     const previous = await currentSessionId();
     await repository().createSession(
@@ -75,10 +80,11 @@ export async function POST(request: Request) {
       new Date(Date.now() + SESSION_SECONDS * 1000),
       previous ? sessionHash(previous) : undefined,
     );
-    const settings = authSettings();
+    stage = "session-cookie";
+    const settings = authSettings(request);
     (await cookies()).set(settings.cookieName, id, settings.options);
     return json({ ok: true });
   } catch (error) {
-    return failure(error);
+    return failure(error, { operation: "sign-in", stage });
   }
 }

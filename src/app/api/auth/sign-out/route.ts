@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const id = await currentSessionId();
     if (id) await repository().revokeSession(sessionHash(id));
-    const settings = authSettings();
+    const settings = authSettings(request);
     (await cookies()).set(settings.cookieName, "", {
       ...settings.options,
       maxAge: 0,

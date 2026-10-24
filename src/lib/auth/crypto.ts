@@ -1,4 +1,5 @@
 import "server-only";
+import { ServiceError } from "../service-error";
 import {
   createCipheriv,
   createDecipheriv,
@@ -8,9 +9,10 @@ import {
 
 export const SESSION_SECONDS = 30 * 24 * 60 * 60;
 export function encryptionKey() {
-  const value = process.env.RCP_TOKEN_ENCRYPTION_KEY;
-  if (!value || !/^[0-9a-f]{64}$/i.test(value))
-    throw new Error("RCP_TOKEN_ENCRYPTION_KEY must be a 32-byte hex key.");
+  const value = process.env.RCP_TOKEN_ENCRYPTION_KEY?.trim();
+  if (!value) throw new ServiceError("TOKEN_KEY_MISSING");
+  if (!/^[0-9a-f]{64}$/i.test(value))
+    throw new ServiceError("TOKEN_KEY_INVALID");
   return Buffer.from(value, "hex");
 }
 export function newSessionId() {

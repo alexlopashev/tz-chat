@@ -2,6 +2,16 @@
 
 Updated October 24, 2026. Start with this file for current infrastructure state, then read `docs/PRODUCT_HANDOFF.md` for the product requirements and acceptance checks. This file supersedes older statements about unprovisioned databases, unsupported ESLint 10, and unverified deployment/model availability.
 
+## Sign-in origin fallback and safe diagnostics — October 24, 2026
+
+The user reported a generic sign-in failure at `https://tz-chat-alexlopashev-gmailcoms-projects.vercel.app/sign-in`. The previous code required `APP_ORIGIN` before validating the token; absent configuration caused the exact generic error. Local checks had an origin configured and missed that scenario. Hosted root cause is not confirmed: this workspace's proxy rejects CONNECT to the Vercel app hostname with HTTP 403 and Vercel CLI is unauthenticated. GitHub reported the prior deployment successful, which does not verify runtime sign-in.
+
+`APP_ORIGIN` is now optional. The app compares Origin with the request Host and uses HTTPS except on loopback; an explicit override remains available for custom proxies. The request Origin and arbitrary forwarded-host headers cannot define the expected origin. Session-cookie selection uses the same rule for pages and route handlers. Regression tests cover the reported Vercel hostname, missing origin configuration, cross-origin rejection and spoofed forwarded-host headers.
+
+Missing/invalid encryption keys and database failures now have safe operational codes. Sign-in records a stage and reference ID in runtime logs without raw errors, SQL, URLs, token values or encryption keys. A failed sign-in returns the matching reference ID for support. Look for `application_request_failed`, then code/stage: `TOKEN_KEY_MISSING`, `TOKEN_KEY_INVALID`, `DATABASE_NOT_CONFIGURED`, `DATABASE_SCHEMA_MISSING`, `DATABASE_PERMISSION_DENIED`, `DATABASE_UNAVAILABLE`, or `AUTH_ORIGIN_INVALID`. The encryption key still must be 64 hex characters; surrounding whitespace is trimmed without changing the key material.
+
+All 33 tests and production build passed. Chromium sign-in, save/reload, logout, old-cookie rejection and fresh-sign-in history restoration passed with no configured APP_ORIGIN or global MCP token. The actual route also accepted matching hosted Host/Origin headers through input validation (HTTP 400 for empty input) and rejected a different Origin (HTTP 403). No hosted runtime or production key/database configuration was independently verified.
+
 ## Removed shared MCP token fallback — October 24, 2026
 
 The application no longer reads `RCP_MCP_TOKEN`. `connectPollingMcp` requires an explicit token argument and fails before opening a transport when it is missing or invalid. MCP validation takes explicit `url`/`token` input rather than defaulting to process environment. Sign-in supplies the submitted token; subsequent authenticated MCP work should use `currentRcpToken()` from the validated session. `.env.example` no longer lists a shared token.

@@ -1,4 +1,6 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
+import { ServiceError } from "./service-error";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authSettings, currentSession } from "./auth/session";
@@ -13,7 +15,7 @@ export class HttpError extends Error {
 }
 export function assertSameOrigin(request: Request) {
   if (
-    request.headers.get("origin") !== authSettings().origin ||
+    request.headers.get("origin") !== authSettings(request).origin ||
     request.headers.get("sec-fetch-site") === "cross-site"
   ) {
     throw new HttpError(403, "This request must come from this application.");
@@ -66,12 +68,28 @@ export function json(value: unknown, status = 200) {
     headers: { "Cache-Control": "no-store" },
   });
 }
-export function failure(error: unknown) {
+export function failure(
+  error: unknown,
+  context?: { operation: "sign-in"; stage: string },
+) {
   if (error instanceof HttpError)
     return json({ error: error.message }, error.status);
-  // SDK/database errors can contain credentials or user content. Never echo/log them.
-  return json(
-    { error: "We couldn't complete that request. Please try again shortly." },
-    503,
+  const reference = randomUUID();
+  const code =
+    error instanceof ServiceError ? error.code : "UNEXPECTED_FAILURE";
+  // Emit only allowlisted diagnostics. Never log the exception, request, or token.
+  console.error(
+    JSON.stringify({
+      event: "application_request_failed",
+      code,
+      reference,
+      operation: context?.operation ?? "request",
+      stage: context?.stage ?? "unknown",
+    }),
   );
+  const message =
+    context?.operation === "sign-in"
+      ? "Sign-in is temporarily unavailable. Your token could not be connected. Please contact support with this reference."
+      : "We couldn't complete that request. Please try again shortly.";
+  return json({ error: `${message} Reference: ${reference}`, reference }, 503);
 }
