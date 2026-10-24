@@ -48,7 +48,7 @@ No deploy token is required in GitHub for native integration. Keep production da
 
 ## Neon persistence
 
-Add **Neon Postgres** through Vercel Marketplace. Set the pooled, TLS-enabled connection as `DATABASE_URL`; optionally set a direct `DATABASE_MIGRATION_URL` for explicit migrations. Use `vercel env pull .env.local` only after linking and choosing the intended environment, and preserve any existing local configuration first.
+The **Neon Postgres** project and separate production/preview branches are provisioned, with the initial schema verified on both. See [database setup](docs/DATABASE.md) for resource IDs and pending Vercel configuration. Set each environment's pooled, TLS-enabled connection as `DATABASE_URL`; optionally set a direct `DATABASE_MIGRATION_URL` where explicit migrations run. Use `vercel env pull .env.local` only after linking and choosing the intended environment, and preserve any existing local configuration first.
 
 Run `mise run db:migrate` against a reviewed target. The initial migration is transactional and repeatable; a checksum rejects modifications to an already-applied baseline. Make future schema changes as new versioned migrations instead of editing the baseline. Review migration strategy before adding those versions. Migrations are intentionally excluded from ordinary builds to avoid simultaneous previews mutating production state.
 

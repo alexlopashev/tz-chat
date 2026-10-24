@@ -18,7 +18,7 @@ Mise tasks, exact package pins and lockfile, Vercel deployment gate, responsive 
 
 ## Boundaries
 
-No live model call, MCP discovery, Neon migration, end-user authentication or Vercel deployment has been verified. Preview messaging makes that distinction explicit. No polling facts or tool schemas were fabricated. The supplied MCP credential has not been written into repository files.
+At the initial foundation checkpoint, no live model call, MCP discovery, Neon migration, end-user authentication or Vercel deployment had been verified. Later infrastructure verification is recorded below. No polling facts or tool schemas were fabricated. The supplied MCP credential has not been written into repository files.
 
 The cloud proxy denied both the MCP and RealClear reference domains. Required domain additions were saved in the cloud configuration draft but have not yet been observed active. Vercel credentials and environment variables must be configured separately in the linked project.
 
@@ -63,3 +63,11 @@ The optional Vercel CLI is now pinned through mise instead of being installed wi
 Next.js 16.4.3's installed documentation and configuration include ESLint 10 compatibility fixes for the legacy React/import rule APIs. ESLint was upgraded to 10.13.0. Targeted peer overrides select that version for the import, accessibility and React plugins, whose peer metadata still excludes 10; other plugins already declare support. TypeScript remains at 6.0.3 within the parser's supported range.
 
 Validation: the actual Vercel install wrapper completed a clean npm 12.2.1 install without cache-option or ESLint deprecation warnings. The build wrapper normalized a deliberately minified `vercel.json` and passed formatting, lint, type checks, all 9 tests and the production build. A deliberately unformatted application source file still blocked the build. Separate checks covered uppercase cache-option translation, preservation of an explicit cache location, and stopping after a verification failure. Invalid JSX still triggered accessibility, React Hooks and Next.js lint rules under ESLint 10. The optional CLI installed successfully through mise. Hosted deployment and cache restoration remain unverified locally.
+
+GitHub subsequently reported the Vercel deployment for commit `525e503` as successful. Individual hosted warning output and cache restoration were not inspected.
+
+## Neon provisioning
+
+Created `tz-chat` in the personal Sasha organization, on PostgreSQL 17 in AWS Northern Virginia. Production and preview have separate branches/computes, each sized at 0.25–1 CU. The account rejected a custom suspend interval; provisioning succeeded using account defaults. The initial schema and checksum ledger were installed in production in one transaction, and preview was branched while the database contained no application data. Both branches' table lists, zero row counts and migration checksum were verified through the Neon connection. Reapplying the baseline to preview succeeded.
+
+See `docs/DATABASE.md` for resource IDs and variable scopes. Vercel remains unconnected to Neon: no database credentials were retrieved or written to Vercel or local files. Application runtime database access and authenticated queries remain unverified.
