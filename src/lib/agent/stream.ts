@@ -7,6 +7,7 @@ import {
 } from "ai";
 import type { ChatMessage, MessageStatus } from "../chat-types";
 import type { UsageRecorder } from "./accounting";
+import { researchCodeTool } from "./discovery";
 import { researchPrompt } from "./prompt";
 
 export function safeAgentError(error: unknown) {
@@ -39,14 +40,21 @@ export async function agentResponse(options: {
   accounting?: UsageRecorder;
   report?: (error?: unknown) => Promise<void>;
 }) {
+  const tools = { ...options.tools, research_tools: researchCodeTool() };
   let errorMessage: string | undefined;
   const messages = await convertToModelMessages(options.history, {
-    tools: options.tools,
+    tools,
     ignoreIncompleteToolCalls: true,
   });
   const result = streamText({
     model: options.model,
-    tools: options.tools,
+    tools,
+    experimental_toolCallers: Object.fromEntries(
+      Object.keys(options.tools).map((name) => [
+        name,
+        ["research_tools"] as const,
+      ]),
+    ),
     messages,
     system: researchPrompt(
       options.now,
@@ -62,7 +70,7 @@ export async function agentResponse(options: {
     maxOutputTokens: 3000,
     maxRetries: 0,
     stopWhen: stepCountIs(6),
-    toolCallConcurrency: 2,
+    toolCallConcurrency: 1,
     prepareStep: ({ stepNumber }) =>
       stepNumber >= 5 ? { toolChoice: "none" } : {},
     abortSignal: options.signal,

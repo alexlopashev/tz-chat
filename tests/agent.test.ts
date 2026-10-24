@@ -3,6 +3,8 @@ vi.mock("server-only", () => ({}));
 import { UsageRecorder } from "../src/lib/agent/accounting";
 import type { Repository } from "../src/lib/repository";
 import { convertToModelMessages } from "ai";
+import { experimental_getToolCaller } from "@ai-sdk/provider-utils";
+import { researchCodeTool } from "../src/lib/agent/discovery";
 import { MockLanguageModelV4 } from "ai/test";
 import type { MCPClient } from "@ai-sdk/mcp";
 import { agentResponse } from "../src/lib/agent/stream";
@@ -77,6 +79,11 @@ function fakeClient() {
     listTools: vi.fn().mockResolvedValue({
       tools: [
         definition,
+        {
+          ...definition,
+          name: "list_pollsters",
+          description: "List polling organizations",
+        },
         { ...definition, name: "whoami" },
         { ...definition, name: "send_feedback" },
       ],
@@ -101,9 +108,25 @@ describe("Bounded polling agent (deterministic model, not live generation)", () 
     const client = fakeClient(),
       signal = new AbortController().signal;
     const tools = await pollingTools(client as unknown as MCPClient, signal);
-    expect(Object.keys(tools)).toEqual(["get_race"]);
+    expect(Object.keys(tools)).toEqual([
+      "search_tools",
+      "get_race",
+      "list_pollsters",
+    ]);
+    expect(tools.get_race.deferLoading).toBe(true);
     const model = new MockLanguageModelV4({
       doStream: [
+        stream([
+          {
+            type: "tool-call",
+            toolCallId: "discovery-1",
+            toolName: "research_tools",
+            input: JSON.stringify({
+              js: 'return await tools.search_tools({ query: "get_race" });',
+            }),
+          },
+          finish("tool-calls"),
+        ]),
         stream([
           { type: "text-start", id: "intro" },
           { type: "text-delta", id: "intro", delta: "Checking the evidence." },
@@ -111,8 +134,10 @@ describe("Bounded polling agent (deterministic model, not live generation)", () 
           {
             type: "tool-call",
             toolCallId: "lookup-1",
-            toolName: "get_race",
-            input: JSON.stringify({ race_id: 1 }),
+            toolName: "research_tools",
+            input: JSON.stringify({
+              js: 'await tools.get_race({ race_id: 1 }); return "Original evidence intentionally omitted";',
+            }),
           },
           finish("tool-calls"),
         ]),
@@ -150,16 +175,36 @@ describe("Bounded polling agent (deterministic model, not live generation)", () 
       .filter((line) => line.startsWith("data: {"))
       .map((line) => JSON.parse(line.slice(6)))
       .find((part) => part.type === "finish");
-    expect(finishPart.messageMetadata.usage.steps).toHaveLength(2);
-    expect(finishPart.messageMetadata.usage.startedSteps).toBe(2);
-    expect(finishPart.messageMetadata.usage.toolCalls).toBe(1);
+    expect(finishPart.messageMetadata.usage.steps).toHaveLength(3);
+    expect(finishPart.messageMetadata.usage.startedSteps).toBe(3);
+    expect(finishPart.messageMetadata.usage.toolCalls).toBe(2);
     expect(accounting.snapshot().status).toBe("complete");
     expect(model.doStreamCalls[0].providerOptions?.openai).toMatchObject({
       promptCacheOptions: { mode: "implicit", ttl: "30m" },
     });
     expect(wire).toContain("text-delta");
     expect(wire).toContain("tool-output-available");
-    expect(model.doStreamCalls).toHaveLength(2);
+    expect(model.doStreamCalls).toHaveLength(3);
+    expect(model.doStreamCalls[0].tools?.map((tool) => tool.name)).toEqual([
+      "research_tools",
+    ]);
+    expect(model.doStreamCalls[1].tools?.map((tool) => tool.name)).toEqual([
+      "research_tools",
+    ]);
+    expect(model.doStreamCalls[2].tools?.map((tool) => tool.name)).toEqual([
+      "research_tools",
+    ]);
+    expect(model.doStreamCalls[1].tools).toEqual(model.doStreamCalls[0].tools);
+    expect(model.doStreamCalls[2].tools).toEqual(model.doStreamCalls[0].tools);
+    expect(JSON.stringify(model.doStreamCalls[0].prompt)).not.toContain(
+      "Synthetic test lookup",
+    );
+    expect(JSON.stringify(model.doStreamCalls[1].prompt)).toContain(
+      "Synthetic test lookup",
+    );
+    expect(JSON.stringify(model.doStreamCalls[1].prompt)).not.toContain(
+      "List polling organizations",
+    );
     expect(client.callTool).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "get_race",
@@ -169,6 +214,8 @@ describe("Bounded polling agent (deterministic model, not live generation)", () 
         }),
       }),
     );
+    expect(wire).toContain("Original evidence intentionally omitted");
+    expect(wire).toContain("Synthetic A");
     expect(persist).toHaveBeenCalledOnce();
     expect(persist.mock.calls[0][1]).toBe("complete");
     expect(close).toHaveBeenCalledOnce();
@@ -202,10 +249,50 @@ describe("Bounded polling agent (deterministic model, not live generation)", () 
       cancel: vi.fn(),
     });
     await second.text();
+    expect(followup.doStreamCalls[0].tools?.map((tool) => tool.name)).toEqual([
+      "research_tools",
+    ]);
     expect(client.callTool).toHaveBeenCalledOnce();
     expect(JSON.stringify(followup.doStreamCalls[0].prompt)).toContain(
       "Synthetic A",
     );
+  });
+  it("rejects undiscovered capabilities and retains host evidence after sandbox failure", async () => {
+    const client = fakeClient();
+    const tools = await pollingTools(
+      client as unknown as MCPClient,
+      new AbortController().signal,
+    );
+    const caller = experimental_getToolCaller(researchCodeTool());
+    if (caller?.type !== "local") throw new Error("Expected local sandbox");
+    const context = { toolCallId: "sandbox", messages: [], context: {} };
+    const unavailable = await caller.bind({}).execute!(
+      { js: "return await tools.get_race({ race_id: 1 });" },
+      context,
+    );
+    expect(unavailable).toMatchObject({
+      error: expect.any(String),
+      evidence: [],
+    });
+    expect(client.callTool).not.toHaveBeenCalled();
+    const partial = await caller.bind({ get_race: tools.get_race }).execute!(
+      {
+        js: 'await tools.get_race({ race_id: 1 }); throw new Error("private sandbox detail");',
+      },
+      context,
+    );
+    expect(partial).toMatchObject({
+      error: expect.any(String),
+      evidence: [{ tool: "get_race", data: synthetic }],
+    });
+    expect(JSON.stringify(partial)).not.toContain("private sandbox detail");
+    const isolated = await caller.bind({}).execute!(
+      { js: "return [typeof process, typeof fetch, typeof require];" },
+      context,
+    );
+    expect(isolated).toMatchObject({
+      result: ["undefined", "undefined", "undefined"],
+    });
   });
   it("marks provider failure and persists a safe error instead of a completed answer", async () => {
     const persist = vi.fn().mockResolvedValue(undefined),

@@ -1,9 +1,18 @@
-import { jsonSchema, tool, type ToolSet, type JSONSchema7 } from "ai";
+import {
+  jsonSchema,
+  tool,
+  toolSearch,
+  type ToolSet,
+  type JSONSchema7,
+} from "ai";
 import type { MCPClient } from "@ai-sdk/mcp";
 import { stableObject } from "./cache";
 import { normalizeEvidence, pollingToolNames } from "./evidence";
 
-export async function pollingTools(client: MCPClient, signal: AbortSignal) {
+export async function pollingTools(
+  client: MCPClient,
+  signal: AbortSignal,
+): Promise<ToolSet> {
   const definitions = await client.listTools({ options: { timeout: 10_000 } });
   const tools: ToolSet = {};
   let calls = 0;
@@ -22,6 +31,7 @@ export async function pollingTools(client: MCPClient, signal: AbortSignal) {
     delete inputSchema.properties?.purpose;
     delete inputSchema.properties?.purpose_kind;
     tools[definition.name] = tool({
+      deferLoading: true,
       description: definition.description,
       inputSchema: jsonSchema<Record<string, unknown>>(
         stableObject(inputSchema),
@@ -56,5 +66,8 @@ export async function pollingTools(client: MCPClient, signal: AbortSignal) {
   }
   if (!Object.keys(tools).length)
     throw new Error("No supported polling tools are available.");
-  return tools;
+  return {
+    search_tools: toolSearch({ maxResults: 3 }),
+    ...tools,
+  };
 }

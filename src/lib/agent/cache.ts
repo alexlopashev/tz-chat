@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
-export const PROMPT_VERSION = "rcp-research-v2";
+export const PROMPT_VERSION = "rcp-research-v3";
 export function cacheSettings(
   owner: string,
   conversation: string,

@@ -17,6 +17,8 @@ The RCP + AI launcher opens a resizable chat panel over a labeled landing-page m
 
 Each response has a collapsed metadata drawer, and the bottom technical drawer totals input, cache-read/write and output tokens plus model cost for the conversation. Totals retain replaced/retried attempts and include title generation. OpenAI-compatible cache controls, a stable prompt prefix and Gateway session affinity support reuse; measured usage shows whether it occurred.
 
+Polling tools load on demand through native AI SDK tool search. Sandboxed code mode keeps the provider-visible tool definition stable for prompt caching, while original MCP evidence remains available in saved response drawers, tables and charts.
+
 Read [Architecture](docs/ARCHITECTURE.md) for authentication, database structure, per-turn execution, caching, reliability and memory extension points.
 
 ## Run locally
