@@ -180,7 +180,7 @@ export function HistoryChart({ data }: { data: Record<string, unknown> }) {
         distinguish overlapping series.
       </p>
       <details className="chart-values">
-        <summary>View observation table</summary>
+        <summary role="button">View observation table</summary>
         <div className="table-scroll">
           <table>
             <thead>

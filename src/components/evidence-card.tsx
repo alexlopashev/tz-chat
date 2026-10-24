@@ -106,7 +106,7 @@ export function EvidenceCard({ output }: { output: unknown }) {
         </div>
       )}
       <details className="evidence-card">
-        <summary>MCP call · {output.tool} · Completed</summary>
+        <summary role="button">MCP call · {output.tool} · Completed</summary>
         <p className="field-help">
           Retrieved {output.retrievedAt.replace("T", " ").slice(0, 19)} UTC ·
           Retrieved snapshot
@@ -116,7 +116,7 @@ export function EvidenceCard({ output }: { output: unknown }) {
           {JSON.stringify(output.requested, null, 2)}
         </pre>
         <details className="tool-response">
-          <summary>Returned data</summary>
+          <summary role="button">Returned data</summary>
           <pre className="tool-json">
             {JSON.stringify(output.data, null, 2)}
           </pre>

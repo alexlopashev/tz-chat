@@ -44,7 +44,7 @@ export function ToolCall({
         <EvidenceCard key={index} output={output} />
       ))}
       <details className="evidence-card tool-call">
-        <summary>
+        <summary role="button">
           {research
             ? "Tool research"
             : discovery

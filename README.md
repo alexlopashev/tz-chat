@@ -80,6 +80,17 @@ Migrations in [`db/migrations`](db/migrations) run explicitly with `mise run db:
 
 Tests cover identity/session boundaries, ownership constraints, retry fencing, tool execution/history replay, failure handling, shared admission/circuit recovery and draft storage. Local production-browser verification has exercised real sign-in, MCP-backed answers, saved history, edit/stop/retry, throttling, draft restoration, responsive layout and evidence drawers. Eight overlapping Neon transactions verified the per-account concurrency boundary. These checks are not a load/soak test or proof of hosted end-to-end availability.
 
+## Chrome UX automation
+
+Start a local production build with `mise run build` and `mise run start`, then run `mise exec -- npm run test:e2e`. The Playwright suite uses **Google Chrome**, not its bundled Chromium. Install Chrome locally (`mise exec -- npx playwright install chrome` if needed), or set `E2E_CHROME_PATH` to a Chrome executable. `E2E_BASE_URL` defaults to `http://localhost:3000`.
+
+The public test covers the launcher, keyboard/pointer resizing, token visibility, simulated sign-in rejection, reduced motion and an axe accessibility scan. Additional tests are explicitly opt-in:
+
+- Set `E2E_RCP_TOKEN`, `DATABASE_URL` and `E2E_ALLOW_DB_FIXTURES=1` to exercise saved conversations, drafts, pin/rename, charts, evidence, metadata, mobile layout and simulated 429/503 recovery. `DATABASE_URL` must refer to the database used by the app being tested; use a development/preview environment. Synthetic evidence is inserted only into conversations created by the test, and those exact conversation IDs are deleted in cleanup.
+- Also set `E2E_LIVE=1` for real MCP/Gateway research, immediate follow-ups, title generation, edit, Stop/Retry and sign-out/returning history. This consumes real model/tool quota. The token belongs only to the test runner; the app still authenticates through its sign-in UI.
+
+Tests target accessible roles/names and meaningful state: `Conversation messages` is a log with `aria-busy`, response articles carry `data-status`, and disclosures have explicit button roles. Wait for these states rather than `networkidle` (the favicon animates) or fixed sleeps. Native range inputs support keyboard chart inspection. Traces, videos and automatic screenshots are disabled to avoid recording credentials; synthetic fixture screenshots and failure artifacts remain in ignored `test-results/`. Do not commit them or saved authentication state.
+
 ## Current limits
 
 This is a focused staging demo. History is replayed rather than summarized; long chats hit a context-size limit. There is no cross-chat user memory, durable background execution, stream reconnection or automated credential retention cleanup. Shared chat/title limits do not protect anonymous sign-in or every inexpensive endpoint. The supplied website HTML was not integrated; the UI follows the supplied visual reference, and successful live iframe rendering is not guaranteed.

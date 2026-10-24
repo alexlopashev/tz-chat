@@ -636,7 +636,7 @@ footer {
   flex-shrink: 0;
   padding: 5px 16px 10px;
   text-align: center;
-  color: #8b8490;
+  color: var(--muted);
   font-size: 9px;
   line-height: 1.5;
 }
@@ -1143,7 +1143,7 @@ tbody tr:nth-child(even) {
 .mock-search > span {
   width: 135px;
   border: 1px solid var(--line);
-  color: #aaa5b0;
+  color: var(--muted);
   padding: 12px;
   font-size: 12px;
   font-weight: 400;

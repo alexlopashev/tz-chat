@@ -118,7 +118,7 @@ The server supplies research-purpose fields. `whoami` is used only by sign-in, a
 | Tool discovery / individual lookup timeout | 10 seconds / 12 seconds                 |
 | Tool result size / historical context size | 120,000 characters / 350,000 characters |
 
-The history limit is character-based, not token-aware summarization. Stop requests cancel the execution; finalization saves available parts when possible. Browser reload does not reconnect to an existing stream. There is no provider-side conversation ID, durable background queue or reusable cross-turn MCP client.
+The history limit is character-based, not token-aware summarization. Stop requests cancel the execution; finalization saves available parts when possible. Browser reload does not reconnect to an existing stream. If the saved response is pending without an active browser stream, the UI refreshes its snapshot every two seconds, bounded to 65 attempts, to observe server finalization or the two-minute stale-generation recovery. This also handles Stop completing before the cancellation status is committed; it does not restart agent execution. There is no provider-side conversation ID, durable background queue or reusable cross-turn MCP client.
 
 Chat titles are separate model work. Automatic and manual generation use `generateText` with `openai/gpt-6-luna`, bounded question-only context, a 12-second timeout and 160 output tokens. Title revision checks prevent delayed generation from overwriting a newer manual change. Title generation does not provide memory for the research model.
 

@@ -69,7 +69,9 @@ function ChatHistoryItem({
           {chat.title}
         </Link>
         <details className="chat-actions" ref={menu}>
-          <summary aria-label={`Actions for ${chat.title}`}>⋯</summary>
+          <summary role="button" aria-label={`Actions for ${chat.title}`}>
+            ⋯
+          </summary>
           <div className="chat-action-menu">
             <button
               type="button"
@@ -118,7 +120,11 @@ function ChatHistoryItem({
             required
             disabled={busy || disabled}
             onKeyDown={(event) => {
-              if (event.key === "Escape" && !busy) setRenaming(false);
+              if (event.key === "Escape" && !busy) {
+                event.stopPropagation();
+                setRenaming(false);
+                menu.current?.querySelector("summary")?.focus();
+              }
             }}
           />
           <div>
@@ -164,7 +170,7 @@ export function ChatHistory({
     <>
       <section aria-label="Pinned chats" className="pinned-chats">
         <details className="history-group" open>
-          <summary>Pinned</summary>
+          <summary role="button">Pinned</summary>
           <ul className="chat-list">
             {pinned.map((chat) => (
               <ChatHistoryItem
@@ -179,7 +185,7 @@ export function ChatHistory({
       </section>
       <section aria-label="Recent chats">
         <details className="history-group" open>
-          <summary>Recent chats</summary>
+          <summary role="button">Recent chats</summary>
           <ul className="chat-list">
             {recent.map((chat) => (
               <ChatHistoryItem

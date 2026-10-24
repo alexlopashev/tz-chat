@@ -60,7 +60,7 @@ function Totals({ runs }: { runs: RunUsage[] }) {
 export function ResponseMetadata({ run }: { run?: RunUsage }) {
   return (
     <details className="technical-metadata response-metadata">
-      <summary>Response metadata</summary>
+      <summary role="button">Response metadata</summary>
       {!run ? (
         <p className="field-help">Usage was not recorded for this response.</p>
       ) : (
@@ -76,7 +76,7 @@ export function ResponseMetadata({ run }: { run?: RunUsage }) {
           <Totals runs={[run]} />
           {run.steps.map((step) => (
             <details className="usage-step" key={step.index}>
-              <summary>
+              <summary role="button">
                 Model call {step.index + 1} ·{" "}
                 {step.provider ?? "provider not reported"} ·{" "}
                 {dollars(step.costUsd)} ({step.costSource})
@@ -126,7 +126,7 @@ export function ConversationMetadata({
 }) {
   return (
     <details className="technical-metadata conversation-metadata">
-      <summary>Technical metadata · Conversation totals</summary>
+      <summary role="button">Technical metadata · Conversation totals</summary>
       <div className="usage-scroll">
         <Totals runs={runs} />
         <p className="field-help">

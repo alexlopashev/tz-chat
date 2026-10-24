@@ -227,6 +227,20 @@ export function ResearchDesk({
     (Boolean(error) ||
       last?.metadata?.status === "failed" ||
       last?.metadata?.status === "interrupted");
+  // The client can finish/abort before the server commits final message parts.
+  // Reconcile pending snapshots without reconnecting or starting another agent.
+  const pendingSavedResponse =
+    !responding && last?.metadata?.status === "pending";
+  useEffect(() => {
+    if (!pendingSavedResponse) return;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      router.refresh();
+      // Covers the server's two-minute stale-generation recovery window.
+      if (++attempts >= 65) clearInterval(timer);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [pendingSavedResponse, last?.id, router]);
   const selectedId = selected?.id;
   const titlePending =
     selected?.title_source === "fallback" && messages.length > 0;
@@ -425,7 +439,13 @@ export function ResearchDesk({
                 Explore the polls. Follow the changes. Keep the evidence.
               </p>
             )}
-            <div className="message-list" aria-live="polite">
+            <div
+              className="message-list"
+              role="log"
+              aria-label="Conversation messages"
+              aria-live="polite"
+              aria-busy={responding}
+            >
               {messages
                 .filter(
                   (message) =>
@@ -439,7 +459,23 @@ export function ResearchDesk({
                     ),
                 )
                 .map((message) => (
-                  <article className="message saved-message" key={message.id}>
+                  <article
+                    className="message saved-message"
+                    key={message.id}
+                    aria-label={
+                      message.role === "user"
+                        ? "Your question"
+                        : "Research assistant response"
+                    }
+                    data-message-id={message.id}
+                    data-status={
+                      responding &&
+                      message.id === last?.id &&
+                      message.role === "assistant"
+                        ? "streaming"
+                        : (message.metadata?.status ?? "complete")
+                    }
+                  >
                     <span className="message-label">
                       {message.role === "user"
                         ? "Your question"
@@ -487,7 +523,7 @@ export function ResearchDesk({
                         <p className="field-help">
                           Response{" "}
                           {message.metadata.status === "pending" && !busy
-                            ? "in progress; reload shortly"
+                            ? "in progress; checking saved status"
                             : message.metadata.status}
                           .
                         </p>
@@ -574,6 +610,7 @@ export function ResearchDesk({
                   <button
                     type="button"
                     className="stop-button"
+                    aria-label="Stop response"
                     onClick={stopResponse}
                   >
                     ■ Stop
@@ -581,6 +618,7 @@ export function ResearchDesk({
                 ) : (
                   <button
                     type="submit"
+                    aria-label={editing ? "Save and send" : "Send question"}
                     disabled={
                       accountBusy || waitSeconds > 0 || !question.trim()
                     }
