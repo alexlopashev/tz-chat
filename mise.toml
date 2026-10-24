@@ -1,0 +1,49 @@
+min_version = "2026.10.18"
+
+[tools]
+"npm:npm" = "12.2.1"
+node = "24.22.1"
+
+[tasks.install]
+description = "Install pinned project tools and dependencies"
+run = "npm ci"
+
+[tasks.clean]
+description = "Remove generated build and test outputs"
+run = "node scripts/clean.mjs"
+
+[tasks.build]
+run = "npm run build"
+
+[tasks.check]
+description = "Typecheck and run focused tests"
+run = "npm run check"
+
+[tasks.lint]
+run = "npm run lint"
+
+[tasks.format]
+run = "npm run format"
+
+[tasks."format:check"]
+run = "npm run format:check"
+
+[tasks.dev]
+description = "Run local Next.js development server"
+run = "npm run dev"
+
+[tasks.start]
+description = "Run a previously built production app locally"
+run = "npm run start"
+
+[tasks.ci]
+description = "All deployment gates"
+run = ["npm run format:check", "npm run lint", "npm run check", "npm run build"]
+
+[tasks."db:migrate"]
+description = "Apply reviewed schema to explicitly configured database"
+run = "node --env-file-if-exists=.env.local scripts/migrate.mjs"
+
+[tasks."deploy:preview"]
+description = "Validate then deploy a preview using local Vercel authentication"
+run = ["mise run ci", "npm exec -- vercel deploy"]
