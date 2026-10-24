@@ -2,6 +2,14 @@
 
 Updated October 24, 2026. Start with this file for current infrastructure state, then read `docs/PRODUCT_HANDOFF.md` for the product requirements and acceptance checks. This file supersedes older statements about unprovisioned databases, unsupported ESLint 10, and unverified deployment/model availability.
 
+## Latest verification: live local agent passes — October 24, 2026
+
+This supersedes the Gateway blocker recorded below. After the user said the required environment variables were imported, fresh diagnostics confirmed both Gateway variables ready and the running application's key/model matching the current runtime (compared without exposing credentials). Gateway reported a $15 balance and minimal generation succeeded. The earlier HTTP 403 no longer reproduces; the cause of the change was not independently established.
+
+Chromium against the local production build completed a real MCP-backed Maine Senate question, verified complete persisted assistant status, tool output and a source citation, reopened the evidence table, then completed and reopened a contextual follow-up. No browser JavaScript errors occurred. The temporary verification conversation was removed. No application code or secret changes were needed. GitHub reports Vercel deployment success for `0cf0a5a`; hosted chat is still unverified because the workspace cannot reach the application hostname.
+
+Next priority: verify the hosted chat flow with its own environment configuration. Charts and remaining product acceptance checks are subsequent work. Local model generation is no longer a blocker.
+
 ## Current priority: finish live agent verification — October 24, 2026
 
 The user confirmed hosted sign-in works and requested agentic chat over their MCP connection. The chat agent is implemented; older save-only/disabled-composer sections below are historical.
