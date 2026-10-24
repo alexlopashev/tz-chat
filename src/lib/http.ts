@@ -1,4 +1,5 @@
 import "server-only";
+import { ProtectionError } from "./protection";
 import { randomUUID } from "node:crypto";
 import { ServiceError } from "./service-error";
 import { NextResponse } from "next/server";
@@ -72,6 +73,22 @@ export function failure(
   error: unknown,
   context?: { operation: "sign-in"; stage: string },
 ) {
+  if (error instanceof ProtectionError)
+    return NextResponse.json(
+      {
+        error: error.message,
+        code: error.code,
+        retryAfter: error.retryAfter,
+        saved: false,
+      },
+      {
+        status: error.status,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": String(error.retryAfter),
+        },
+      },
+    );
   if (error instanceof HttpError)
     return json({ error: error.message }, error.status);
   const reference = randomUUID();

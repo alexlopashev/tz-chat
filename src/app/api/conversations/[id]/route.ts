@@ -1,3 +1,4 @@
+import { ProtectionError } from "@/lib/protection";
 import { chatModel } from "@/lib/gateway";
 import { TITLE_MODEL, updateGeneratedTitle } from "@/lib/agent/title";
 import { z } from "zod";
@@ -66,7 +67,8 @@ export async function PATCH(
           id,
           chatModel(TITLE_MODEL),
         );
-      } catch {
+      } catch (error) {
+        if (error instanceof ProtectionError) throw error;
         throw new HttpError(
           503,
           "Couldn't generate a title. Your current title is unchanged; please try again.",

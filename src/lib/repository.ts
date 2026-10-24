@@ -81,6 +81,13 @@ export class Repository {
     );
     return rows[0] ?? null;
   }
+  async ownsConversation(userId: string, id: string) {
+    const rows = await this.db.query(
+      "SELECT id FROM conversations WHERE owner_id=$1 AND id=$2",
+      [userId, id],
+    );
+    return rows.length > 0;
+  }
   async conversations(userId: string) {
     return this.db.query<Conversation>(
       `WITH activity AS (

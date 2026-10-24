@@ -1,3 +1,10 @@
+import { database } from "@/lib/database";
+import {
+  SharedProtection,
+  ProtectionError,
+  dependencyOutcome,
+  type Outcome,
+} from "@/lib/protection";
 import { after } from "next/server";
 import { TITLE_MODEL, updateGeneratedTitle } from "@/lib/agent/title";
 import { z } from "zod";
@@ -31,6 +38,9 @@ export async function POST(
     | undefined;
   let client: Awaited<ReturnType<typeof connectPollingMcp>> | undefined;
   let streamOwnsClient = false;
+
+  let release: (() => Promise<void>) | undefined;
+  let finishGateway: ((outcome: Outcome) => Promise<void>) | undefined;
   const controller = new AbortController();
   const signal = AbortSignal.any([
     request.signal,
@@ -39,6 +49,7 @@ export async function POST(
   ]);
   try {
     assertSameOrigin(request);
+    const protection = new SharedProtection(database());
     const session = await requireSession();
     const { id } = await context.params;
     if (!z.string().uuid().safeParse(id).success)
@@ -65,6 +76,10 @@ export async function POST(
     const model = chatModel();
     repo = repository();
     const activeRepo = repo;
+    if (!(await repo.ownsConversation(session.user_id, id)))
+      throw new HttpError(404, "Conversation not found.");
+    release = await protection.admit(session.user_id, "chat");
+    finishGateway = await protection.circuit("gateway");
     const turn = await repo.reserveTurn(
       session.user_id,
       id,
@@ -126,12 +141,17 @@ export async function POST(
           );
         }
       });
-    client = await connectPollingMcp(token, signal);
+    client = await connectPollingMcp(token, signal, protection);
     const tools = await pollingTools(client, signal);
     const activeClient = client;
     const response = await agentResponse({
       model,
       tools,
+      report: async (error) => {
+        await finishGateway?.(
+          error ? dependencyOutcome(error, signal) : "success",
+        );
+      },
       history,
       assistantId: turn.assistantId,
       requestId: body.requestId,
@@ -147,14 +167,20 @@ export async function POST(
         );
         if (!stored) throw new Error("Generation was superseded.");
       },
-      close: () => activeClient.close().catch(() => {}),
+      close: async () => {
+        await activeClient.close().catch(() => {});
+        await finishGateway?.(
+          signal.aborted ? dependencyOutcome(signal.reason, signal) : "neutral",
+        );
+        await release?.();
+      },
       cancel: () => controller.abort(),
     });
     streamOwnsClient = true;
     return response;
   } catch (error) {
     const message =
-      error instanceof HttpError
+      error instanceof HttpError || error instanceof ProtectionError
         ? error.message
         : error instanceof McpAccessError && error.rejected
           ? "RCP access has expired. Sign out and reconnect with a current token."
@@ -180,13 +206,33 @@ export async function POST(
         );
       }
     }
-    return error instanceof HttpError
-      ? failure(error)
-      : failure(new HttpError(503, message));
+    if (error instanceof ProtectionError) {
+      const response = failure(error);
+      if (!reserved) return response;
+      return Response.json(
+        {
+          error: message + " Your question is saved; retry it later.",
+          code: error.code,
+          retryAfter: error.retryAfter,
+          saved: true,
+        },
+        { status: error.status, headers: response.headers },
+      );
+    }
+    const response =
+      error instanceof HttpError
+        ? failure(error)
+        : failure(new HttpError(503, message));
+    return Response.json(
+      { error: message, saved: Boolean(reserved) },
+      { status: response.status, headers: response.headers },
+    );
   } finally {
     if (!streamOwnsClient) {
       controller.abort();
       await client?.close().catch(() => {});
+      await finishGateway?.("neutral");
+      await release?.();
     }
   }
 }

@@ -30,7 +30,6 @@ export function RcpBackdrop({ inactive }: { inactive: boolean }) {
         <div className="mock-search">
           Search <span>Find any poll</span>
         </div>
-        <span className="mock-ai">✦ RCP + AI</span>
       </header>
       <div className="mock-page">
         <div className="mock-edition">

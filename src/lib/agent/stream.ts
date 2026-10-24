@@ -17,6 +17,8 @@ export function safeAgentError(error: unknown) {
     return "The AI service is unavailable for this workspace. Your question is saved; please try again after service access is restored.";
   if (status === 429)
     return "The AI service is busy. Your question is saved; please try again shortly.";
+  if (typeof status === "number" && status >= 500)
+    return "The AI service is temporarily unavailable or experiencing unusually high load. Your question is saved; please wait and retry.";
   return "The answer couldn't be completed. Your question is saved. Please try again.";
 }
 export async function agentResponse(options: {
@@ -33,6 +35,7 @@ export async function agentResponse(options: {
   close: () => Promise<void>;
   cancel: () => void;
   now?: Date;
+  report?: (error?: unknown) => Promise<void>;
 }) {
   let errorMessage: string | undefined;
   const messages = await convertToModelMessages(options.history, {
@@ -51,7 +54,8 @@ export async function agentResponse(options: {
     prepareStep: ({ stepNumber }) =>
       stepNumber >= 5 ? { toolChoice: "none" } : {},
     abortSignal: options.signal,
-    onError: ({ error }) => {
+    onError: async ({ error }) => {
+      await options.report?.(error);
       errorMessage = safeAgentError(error);
     },
   });
@@ -103,6 +107,7 @@ export async function agentResponse(options: {
                 "The research limit was reached before the answer was complete. Try a narrower question."),
         });
       try {
+        if (status === "complete") await options.report?.();
         await options.finish(parts, status);
       } finally {
         await options.close();

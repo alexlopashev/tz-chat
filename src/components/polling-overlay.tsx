@@ -5,12 +5,13 @@ import { RcpBackdrop } from "./rcp-backdrop";
 export function PollingOverlay({ children }: { children: React.ReactNode }) {
   const [width, setWidth] = useState(520);
   const [expanded, setExpanded] = useState(false);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [resizing, setResizing] = useState(false);
   const [frameVersion, setFrameVersion] = useState(0);
   const [liveBackdrop, setLiveBackdrop] = useState(false);
   const previousWidth = useRef(520);
   const panel = useRef<HTMLElement>(null);
+  const launcher = useRef<HTMLButtonElement>(null);
   function resize(next: number) {
     const bounded = Math.max(
       Math.min(360, window.innerWidth),
@@ -77,6 +78,7 @@ export function PollingOverlay({ children }: { children: React.ReactNode }) {
       </div>
       {resizing && <div className="resize-shield" />}
       <section
+        id="polling-chat-panel"
         ref={panel}
         tabIndex={-1}
         className="overlay-panel"
@@ -166,7 +168,10 @@ export function PollingOverlay({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               className="icon-button"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+                requestAnimationFrame(() => launcher.current?.focus());
+              }}
               aria-label="Minimize chat"
               title="Minimize chat"
             >
@@ -186,16 +191,18 @@ export function PollingOverlay({ children }: { children: React.ReactNode }) {
       </section>
       {!open && (
         <button
-          ref={(node) => {
-            node?.focus();
-          }}
+          ref={launcher}
+          type="button"
+          aria-controls="polling-chat-panel"
+          aria-expanded={open}
+          aria-label="RCP + AI — Open chat"
           className="chat-launcher"
           onClick={() => {
             setOpen(true);
             requestAnimationFrame(() => panel.current?.focus());
           }}
         >
-          ✦ Open polling assistant
+          <span>✦ RCP + AI</span>
         </button>
       )}
     </div>

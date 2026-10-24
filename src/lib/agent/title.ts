@@ -1,3 +1,4 @@
+import { SharedProtection } from "../protection";
 import { generateText, type LanguageModel } from "ai";
 import type { SavedMessage, Repository } from "../repository";
 
@@ -46,7 +47,17 @@ export async function updateGeneratedTitle(
   const conversation = await repo.conversation(userId, id);
   if (!conversation || (automatic && conversation.title_source !== "fallback"))
     return false;
-  const title = await generateTitle(model, conversation.messages);
+  const { database } = await import("../database");
+  const protection = new SharedProtection(database());
+  const release = await protection.admit(userId, "title");
+  let title: string;
+  try {
+    title = await protection.run("gateway", () =>
+      generateTitle(model, conversation.messages),
+    );
+  } finally {
+    await release();
+  }
   return repo.setGeneratedTitle(
     userId,
     id,

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 vi.mock("server-only", () => ({}));
+import { ProtectionError } from "../src/lib/protection";
 import { encryptionKey } from "../src/lib/auth/crypto";
 import { ServiceError } from "../src/lib/service-error";
 import { authSettings } from "../src/lib/auth/session";
@@ -150,4 +151,21 @@ describe("Browser session boundary", () => {
     expect(response.status).toBe(503);
     expect(await response.text()).not.toMatch(/secret-token|postgres/);
   });
+});
+
+it("returns machine-readable throttling with Retry-After and explicit unsaved status", async () => {
+  for (const [code, status] of [
+    ["USER_RATE_LIMIT", 429],
+    ["SERVICE_BUSY", 503],
+  ] as const) {
+    const response = failure(new ProtectionError(code, 17));
+    expect(response.status).toBe(status);
+    expect(response.headers.get("Retry-After")).toBe("17");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({
+      code,
+      retryAfter: 17,
+      saved: false,
+    });
+  }
 });

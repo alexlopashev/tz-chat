@@ -303,15 +303,69 @@ h2 {
 .chat-launcher {
   position: fixed;
   right: 24px;
-  bottom: 24px;
+  top: 17px;
   z-index: 4;
-  border: 1px solid var(--ink);
+  isolation: isolate;
+  overflow: hidden;
+  border: 0;
   border-radius: 30px;
-  background: var(--yellow);
+  background: var(--ink);
   color: var(--ink);
-  padding: 16px 24px;
-  font-weight: 700;
-  box-shadow: 0 5px 25px #24044220;
+  padding: 3px;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 3px 20px #24044225;
+}
+.chat-launcher::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -100px;
+  background: conic-gradient(
+    from 0deg,
+    #341355 0deg 210deg,
+    #a68be7 250deg,
+    #fff4b7 285deg,
+    #ffcc40 310deg,
+    #341355 350deg
+  );
+  animation: launcher-led 3s linear infinite;
+}
+.chat-launcher > span {
+  display: block;
+  padding: 11px 20px;
+  border-radius: inherit;
+  background: var(--yellow);
+}
+.chat-launcher:hover > span {
+  background: #fff0b5;
+}
+.chat-launcher:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 4px;
+}
+@keyframes launcher-led {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-launcher::before {
+    animation: none;
+  }
+}
+@media (max-width: 640px) {
+  .chat-launcher {
+    top: 14px;
+    right: 12px;
+    font-size: 13px;
+  }
+  .chat-launcher > span {
+    padding: 9px 12px;
+  }
+  .mock-navigation > .mock-wordmark {
+    font-size: 20px;
+  }
 }
 /* Panel layout responds to its own width, not the website's viewport. */
 .research-desk {
@@ -1049,7 +1103,7 @@ tbody tr:nth-child(even) {
   min-width: 900px;
   height: 82px;
   border-bottom: 1px solid #d7d7db;
-  padding: 0 4%;
+  padding: 0 200px 0 4%;
 }
 .mock-navigation > a {
   display: flex;
@@ -1293,13 +1347,12 @@ tbody tr:nth-child(even) {
     padding-inline: 20px;
   }
   .mock-navigation > a:not(.mock-wordmark),
-  .mock-search,
-  .mock-ai {
+  .mock-search {
     display: none;
   }
   .mock-navigation > .mock-wordmark {
     border: 0;
-    font-size: 26px;
+    font-size: 20px;
   }
   .mock-page {
     padding: 30px 22px 150px;

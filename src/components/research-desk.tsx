@@ -6,6 +6,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, getToolName } from "ai";
 import type { Conversation, SavedMessage } from "@/lib/repository";
 import { toChatMessages, type ChatMessage } from "@/lib/chat-types";
+import { draftKey, readDraft, writeDraft } from "@/lib/drafts";
 import { RichMessage } from "./rich-message";
 import { ChatHistory } from "./chat-history";
 import { EvidenceCard } from "./evidence-card";
@@ -38,9 +39,56 @@ export function ResearchDesk({
     previousRequestId: string;
     draft: string;
   } | null>(null);
+  const storageKey = draftKey(userId, selected?.id);
+  const restoredDraft = useRef<string | null>(null);
+  useEffect(() => {
+    if (restoredDraft.current === storageKey) return;
+    restoredDraft.current = storageKey;
+    const draft = readDraft(storageKey);
+    if (!draft) return;
+    const lastQuestion = selected?.messages.findLast(
+      (message) => message.role === "user",
+    );
+    const edit =
+      draft.editing &&
+      lastQuestion?.id === draft.editing.messageId &&
+      lastQuestion.request_id === draft.editing.previousRequestId
+        ? draft.editing
+        : null;
+    // Restore after hydration; only the matching latest turn may resume an edit.
+    queueMicrotask(() => {
+      setQuestion(draft.text);
+      setEditing(edit);
+    });
+  }, [storageKey, selected]);
+  function updateDraft(text: string, edit = editing) {
+    setQuestion(text);
+    writeDraft(storageKey, { text, editing: edit });
+  }
   const editAttempt = useRef<
     { messageId: string; previousRequestId: string } | undefined
   >(undefined);
+  const [notice, setNotice] = useState<{
+    message: string;
+    until: number;
+    unsaved: boolean;
+  } | null>(null);
+  const [clock, setClock] = useState(0);
+  const submission = useRef<{
+    messages: ChatMessage[];
+    question: string;
+    editing: typeof editing;
+    retry?: boolean;
+  } | null>(null);
+  const rejected = useRef(false);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [notice]);
+  const waitSeconds = notice
+    ? Math.max(0, Math.ceil((notice.until - clock) / 1000))
+    : 0;
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
@@ -60,32 +108,76 @@ export function ResearchDesk({
         },
         fetch: async (input, init) => {
           const response = await fetch(input, init);
-          if (response.ok) return response;
+          if (response.ok) {
+            writeDraft(storageKey, null);
+            return response;
+          }
           const data = await response
             .json()
             .catch(() => ({ error: "The request failed. Please try again." }));
-          return new Response(data.error, {
-            status: response.status,
-            headers: { "Content-Type": "text/plain" },
-          });
+          if (data.saved === true) writeDraft(storageKey, null);
+          return new Response(
+            data.code && data.retryAfter ? JSON.stringify(data) : data.error,
+            {
+              status: response.status,
+              headers: { "Content-Type": "text/plain" },
+            },
+          );
         },
       }),
-    [],
+    [storageKey],
   );
   function syncLocation() {
     if (conversationId.current)
       router.replace("/?chat=" + conversationId.current);
     router.refresh();
   }
-  const { messages, sendMessage, regenerate, stop, status, error, clearError } =
-    useChat<ChatMessage>({
-      id: selected?.id,
-      messages: selected ? toChatMessages(selected.messages) : [],
-      generateId: () => crypto.randomUUID(),
-      transport,
-      throttle: 50,
-      onFinish: syncLocation,
-    });
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    regenerate,
+    stop,
+    status,
+    error,
+    clearError,
+  } = useChat<ChatMessage>({
+    id: selected?.id,
+    messages: selected ? toChatMessages(selected.messages) : [],
+    generateId: () => crypto.randomUUID(),
+    transport,
+    throttle: 50,
+    onFinish: () => {
+      if (!rejected.current) syncLocation();
+    },
+    onError: (error): void => {
+      try {
+        const data = JSON.parse(error.message);
+        if (!data.code || !Number.isFinite(data.retryAfter)) return;
+        // AI SDK invokes onError after a request fails, never during render.
+        // eslint-disable-next-line react-hooks/purity
+        const now = Date.now();
+        setClock(now);
+        setNotice({
+          message: data.error,
+          until: now + data.retryAfter * 1000,
+          unsaved: data.saved === false && !submission.current?.retry,
+        });
+        if (data.saved === false && submission.current) {
+          rejected.current = true;
+          setMessages(submission.current.messages);
+          setQuestion(submission.current.question);
+          writeDraft(storageKey, {
+            text: submission.current.question,
+            editing: submission.current.editing,
+          });
+          setEditing(submission.current.editing);
+        }
+      } catch {
+        /* Ordinary SDK failures already have a safe user message. */
+      }
+    },
+  });
   const responding =
     sending || status === "submitted" || status === "streaming";
   useEffect(() => {
@@ -97,6 +189,7 @@ export function ResearchDesk({
   const last = messages.at(-1);
   const retryable =
     !busy &&
+    !notice?.unsaved &&
     (Boolean(error) ||
       last?.metadata?.status === "failed" ||
       last?.metadata?.status === "interrupted");
@@ -142,22 +235,28 @@ export function ResearchDesk({
   }
   function editLastQuestion() {
     if (!lastUser || busy) return;
-    setEditing({
+    const edit = {
       messageId: lastUser.id,
       previousRequestId: lastUser.metadata?.requestId ?? lastUser.id,
       draft: question,
-    });
-    setQuestion(
+    };
+    setEditing(edit);
+    updateDraft(
       lastUser.parts
         .filter((part) => part.type === "text")
         .map((part) => part.text)
         .join("\n"),
+      edit,
     );
     inputRef.current?.focus();
   }
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !question.trim()) return;
+    if (busy || waitSeconds > 0 || !question.trim()) return;
+    rejected.current = false;
+    submission.current = { messages: [...messages], question, editing };
+    writeDraft(storageKey, { text: question, editing });
+    setNotice(null);
     const controller = new AbortController();
     setupRequest.current = controller;
     followResponse.current = true;
@@ -192,7 +291,7 @@ export function ResearchDesk({
       );
     } catch {
       if (!controller.signal.aborted) {
-        setQuestion(text);
+        updateDraft(text, editing);
         setEditing(editing);
         setActionError("Couldn't send the question. Please try again.");
       }
@@ -378,7 +477,7 @@ export function ResearchDesk({
                   type="button"
                   className="suggested-question"
                   onClick={() => {
-                    setQuestion("What has changed in the Maine Senate race?");
+                    updateDraft("What has changed in the Maine Senate race?");
                     inputRef.current?.focus();
                   }}
                 >
@@ -399,7 +498,7 @@ export function ResearchDesk({
                     type="button"
                     className="text-button"
                     onClick={() => {
-                      setQuestion(editing.draft);
+                      updateDraft(editing.draft, null);
                       setEditing(null);
                       inputRef.current?.focus();
                     }}
@@ -429,7 +528,7 @@ export function ResearchDesk({
                       event.currentTarget.form?.requestSubmit();
                   }
                 }}
-                onChange={(e) => setQuestion(e.target.value)}
+                onChange={(e) => updateDraft(e.target.value)}
                 maxLength={4000}
                 disabled={busy}
                 placeholder="What has changed in the Maine Senate race?"
@@ -449,7 +548,9 @@ export function ResearchDesk({
                 ) : (
                   <button
                     type="submit"
-                    disabled={accountBusy || !question.trim()}
+                    disabled={
+                      accountBusy || waitSeconds > 0 || !question.trim()
+                    }
                   >
                     {editing ? "Save & send ↑" : "Send question ↑"}
                   </button>
@@ -463,16 +564,36 @@ export function ResearchDesk({
                   : "Researching your question…"}{" "}
               </div>
             )}
-            {(actionError || error) && (
+            {(actionError || error || notice) && (
               <p role="alert" className="form-error">
-                {actionError || error?.message}
+                {actionError || notice?.message || error?.message}
+                {notice && (
+                  <span>
+                    {" "}
+                    {waitSeconds > 0
+                      ? `You can send again in ${waitSeconds}s.`
+                      : "You can try again now."}{" "}
+                    {notice.unsaved
+                      ? "Your draft has been kept; it has not been sent."
+                      : "Your question is saved."}
+                  </span>
+                )}
               </p>
             )}
             {retryable && (
               <button
                 type="button"
                 className="secondary-button"
+                disabled={waitSeconds > 0}
                 onClick={() => {
+                  rejected.current = false;
+                  submission.current = {
+                    messages: [...messages],
+                    question,
+                    editing,
+                    retry: true,
+                  };
+                  setNotice(null);
                   clearError();
                   regenerate({
                     body: {
@@ -486,7 +607,8 @@ export function ResearchDesk({
               </button>
             )}
             {!busy &&
-              (last?.metadata?.status === "pending" || Boolean(error)) && (
+              (last?.metadata?.status === "pending" ||
+                (Boolean(error) && !notice?.unsaved)) && (
                 <button
                   className="secondary-button"
                   onClick={() => window.location.reload()}

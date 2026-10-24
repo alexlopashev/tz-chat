@@ -42,7 +42,7 @@ export async function pollingTools(client: MCPClient, signal: AbortSignal) {
           });
         } catch {
           throw new Error(
-            "RCP lookup failed or timed out. Reconnect your RCP account if access has expired.",
+            "RCP lookup could not be completed. The service may be busy or temporarily unavailable; please wait before retrying. Reconnect your RCP account if access has expired.",
           );
         }
         return normalizeEvidence(definition.name, input, result);
