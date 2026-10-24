@@ -605,3 +605,54 @@ button {
   font-size: 13px;
   color: var(--muted);
 }
+.evidence-result {
+  margin: 20px 0;
+  min-width: 0;
+}
+.evidence-result > div > strong {
+  display: block;
+  margin-top: 20px;
+}
+.history-chart {
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+}
+.history-chart figcaption {
+  font-size: 13px;
+  font-weight: 600;
+}
+.history-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+}
+.history-chart svg text {
+  font-size: 12px;
+  fill: var(--muted);
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  list-style: none;
+  padding: 0;
+  font-size: 12px;
+}
+.chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chart-legend span {
+  display: inline-block;
+  width: 22px;
+  border-width: 2px 0 0;
+}
+.chart-values {
+  font-size: 12px;
+}
+.chart-values summary {
+  cursor: pointer;
+}

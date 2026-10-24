@@ -3,24 +3,19 @@ import {
   isEvidence,
   historyChanges,
 } from "@/lib/agent/evidence";
+import { HistoryChart } from "./history-chart";
 
 export function EvidenceCard({ output }: { output: unknown }) {
   if (!isEvidence(output)) return null;
-  const tables = averageTables(output);
+  const tables = ["get_race", "compare_races"].includes(output.tool)
+    ? averageTables(output)
+    : [];
   const trend =
     output.tool === "get_race_average_history"
       ? historyChanges(output.data)
       : null;
   return (
-    <details
-      className="evidence-card"
-      open={tables.length > 0 || Boolean(trend)}
-    >
-      <summary>RCP evidence · {output.tool.replaceAll("_", " ")}</summary>
-      <p className="field-help">
-        Retrieved {output.retrievedAt.replace("T", " ").slice(0, 19)} UTC ·
-        Saved snapshot
-      </p>
+    <div className="evidence-result">
       {tables.map((race, index) => (
         <div key={index}>
           <strong>{race.title}</strong>
@@ -56,6 +51,7 @@ export function EvidenceCard({ output }: { output: unknown }) {
       {trend && (
         <div>
           <strong>Published-average support changes</strong>
+          <HistoryChart data={output.data} />
           <p className="field-help">
             Requested: {String(output.requested.from ?? "start unspecified")} to{" "}
             {String(output.requested.to ?? "end unspecified")}. Returned
@@ -97,25 +93,34 @@ export function EvidenceCard({ output }: { output: unknown }) {
           )}
         </div>
       )}
-      {!tables.length && !trend && (
+      <details className="evidence-card">
+        <summary>RCP evidence · {output.tool.replaceAll("_", " ")}</summary>
         <p className="field-help">
-          Evidence retrieved for this answer. Sources and dates are preserved
-          with the conversation.
+          Retrieved {output.retrievedAt.replace("T", " ").slice(0, 19)} UTC ·
+          Saved snapshot
         </p>
-      )}
-      {output.sources.length > 0 ? (
-        <ul className="evidence-sources">
-          {output.sources.map((url) => (
-            <li key={url}>
-              <a href={url} target="_blank" rel="noopener noreferrer">
-                {new URL(url).hostname} · source
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="field-help">No source URL was supplied by this lookup.</p>
-      )}
-    </details>
+        {!tables.length && !trend && (
+          <p className="field-help">
+            Evidence retrieved for this answer. Sources and dates are preserved
+            with the conversation.
+          </p>
+        )}
+        {output.sources.length > 0 ? (
+          <ul className="evidence-sources">
+            {output.sources.map((url) => (
+              <li key={url}>
+                <a href={url} target="_blank" rel="noopener noreferrer">
+                  {new URL(url).hostname} · source
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="field-help">
+            No source URL was supplied by this lookup.
+          </p>
+        )}
+      </details>
+    </div>
   );
 }

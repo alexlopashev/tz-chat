@@ -193,3 +193,47 @@ export function historyChanges(data: Record<string, unknown>) {
     }),
   };
 }
+
+/** Validated, chronological observations; never fill missing support with zero. */
+export function historySeries(data: Record<string, unknown>) {
+  const parsed = historySchema.safeParse(data);
+  if (
+    !parsed.success ||
+    parsed.data.columns.join(",") !== "date,results,spread"
+  )
+    return null;
+  const rows = [...parsed.data.rows].sort((a, b) => a[0].localeCompare(b[0]));
+  if (
+    rows.length < 2 ||
+    new Set(rows.map((row) => row[0])).size !== rows.length
+  )
+    return null;
+  if (
+    rows.some(
+      (row) =>
+        !Number.isFinite(Date.parse(row[0])) ||
+        new Date(row[0]).toISOString().slice(0, 10) !== row[0],
+    )
+  )
+    return null;
+  const names = [
+    ...new Set(rows.flatMap((row) => row[1].map((candidate) => candidate[0]))),
+  ];
+  const series = names.map((name) => ({
+    name,
+    points: rows.map((row) => {
+      const value =
+        row[1].find((candidate) => candidate[0] === name)?.[2] ?? null;
+      return {
+        date: row[0],
+        value: value !== null && value >= 0 && value <= 100 ? value : null,
+      };
+    }),
+  }));
+  return series.some(
+    (candidate) =>
+      candidate.points.filter((point) => point.value !== null).length >= 2,
+  )
+    ? series
+    : null;
+}

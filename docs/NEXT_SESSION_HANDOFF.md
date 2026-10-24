@@ -2,6 +2,12 @@
 
 Updated October 24, 2026. Start with this file for current infrastructure state, then read `docs/PRODUCT_HANDOFF.md` for the product requirements and acceptance checks. This file supersedes older statements about unprovisioned databases, unsupported ESLint 10, and unverified deployment/model availability.
 
+## Chat evidence UX — October 24, 2026
+
+MCP source details now start collapsed. Published-average tables for race/detail comparisons and historical endpoint-change tables remain visible outside the disclosure. Valid historical-average observations render a responsive SVG time-series chart with date-proportional spacing, a labeled 0–100% support axis, candidate legend, missing-value gaps and an expandable exact-observation table. Invalid, duplicate-date or insufficient history does not render a chart. Search discovery results do not generate a stack of unsolicited average tables. Markdown tables remain supported for other evidence-backed comparisons.
+
+All 43 tests, zero-warning lint, type checks and production build passed. Chromium verified real MCP average/history values in temporary saved-message fixtures, default-collapsed source details, disclosure toggling, visible tables/chart, and desktop/390px layouts without horizontal overflow. Fixtures were removed. The fixture prose was explicit test text; the live generation verification below remains the last full agent check.
+
 ## Latest verification: live local agent passes — October 24, 2026
 
 This supersedes the Gateway blocker recorded below. After the user said the required environment variables were imported, fresh diagnostics confirmed both Gateway variables ready and the running application's key/model matching the current runtime (compared without exposing credentials). Gateway reported a $15 balance and minimal generation succeeded. The earlier HTTP 403 no longer reproduces; the cause of the change was not independently established.

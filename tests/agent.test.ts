@@ -4,7 +4,11 @@ import { MockLanguageModelV4 } from "ai/test";
 import type { MCPClient } from "@ai-sdk/mcp";
 import { agentResponse } from "../src/lib/agent/stream";
 import { pollingTools } from "../src/lib/agent/tools";
-import { historyChanges, normalizeEvidence } from "../src/lib/agent/evidence";
+import {
+  historyChanges,
+  historySeries,
+  normalizeEvidence,
+} from "../src/lib/agent/evidence";
 import { researchDates } from "../src/lib/agent/prompt";
 import type { ChatMessage } from "../src/lib/chat-types";
 
@@ -308,6 +312,37 @@ describe("Bounded polling agent (deterministic model, not live generation)", () 
         { content: [{ type: "text", text: "x".repeat(120001) }] },
       ),
     ).toThrow("too much");
+  });
+  it("charts only chronological real observations and preserves missing-value gaps", () => {
+    const data = {
+      columns: ["date", "results", "spread"],
+      rows: [
+        ["2026-10-20", [["A", "Other", 49]], null],
+        ["2026-10-01", [["A", "Other", 45]], null],
+        ["2026-10-10", [["A", "Other", null]], null],
+      ],
+    };
+    expect(historySeries(data)?.[0].points).toEqual([
+      { date: "2026-10-01", value: 45 },
+      { date: "2026-10-10", value: null },
+      { date: "2026-10-20", value: 49 },
+    ]);
+    expect(historySeries({ ...data, rows: data.rows.slice(0, 1) })).toBeNull();
+    expect(
+      historySeries({ ...data, rows: [data.rows[0], data.rows[0]] }),
+    ).toBeNull();
+    expect(
+      historySeries({
+        ...data,
+        rows: [["2026-02-30", [["A", "Other", 45]], null], data.rows[0]],
+      }),
+    ).toBeNull();
+    expect(
+      historySeries({
+        ...data,
+        rows: [["2026-10-01", [["A", "Other", 105]], null], data.rows[0]],
+      }),
+    ).toBeNull();
   });
   it("resolves month boundaries with calendar clamping in the documented timezone", () => {
     expect(researchDates(new Date("2024-03-31T12:00:00Z"))).toMatchObject({

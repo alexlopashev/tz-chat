@@ -161,3 +161,9 @@ Current local AI Gateway requests still fail with HTTP 403 and a billing/credit 
 Following the user's environment-import clarification, current readiness showed Gateway variables ready. The running app matched the current runtime key/model without exposing values. Gateway credits returned balance 15 and totalUsed 0 before the probe; minimal generation succeeded. The previous 403 is no longer current; no code or credential edits were required, and the cause of the changed service response is not established.
 
 Chromium verified a real MCP-backed Maine Senate answer, complete persisted tool/text parts with source citation, reopened evidence table, then a contextual follow-up that also completed and reopened. No browser JavaScript errors; temporary test conversation removed. GitHub reports Vercel deployment success for `0cf0a5a`, but hosted chat remains unverified.
+
+## Collapsed evidence and grounded charts — October 24, 2026
+
+Moved source details into default-collapsed disclosures while keeping useful tables and historical-average charts visible. Added chronological, validated history series with missing-value gaps, actual date spacing, full-scale percentage axis, legends and exact-observation tables. Model guidance now requests appropriate history retrieval for chart/trend questions and supports Markdown comparisons without chart code or invented data.
+
+All 43 tests, formatting, zero-warning lint, TypeScript and production build passed. Chromium verified desktop/mobile rendering with real MCP evidence in explicitly labeled saved-message fixtures, default collapse and toggle behavior, exact table values and no page overflow. Temporary fixture conversations were removed; local production server restarted.
