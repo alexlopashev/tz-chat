@@ -20,7 +20,7 @@ The `0001_chat` migration was applied transactionally with the repository runner
 
 ## Pending Vercel connection
 
-The Neon project was created through Neon directly. It has not yet been connected to the Vercel project, and no database credentials have been added to Vercel or local environment files.
+The Neon project was created through Neon directly. Vercel environment configuration has not been independently verified; the user reports configuring variables in CloudVM settings, whose application to this chat's runtime remains unresolved. Preview pooled/direct connections have since been written to a gitignored local `.env.local`. Direct local Neon access was denied by the network proxy. See `NEXT_SESSION_HANDOFF.md` for current evidence and the required hostnames.
 
 | Vercel scope | Neon branch                                | Variables                               |
 | ------------ | ------------------------------------------ | --------------------------------------- |

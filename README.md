@@ -2,7 +2,7 @@
 
 Next.js + React + Vercel AI SDK, with Vercel AI Gateway and Neon Postgres selected for deployment. This is a runnable **foundation preview**, not a working polling agent. The shell contains no fabricated poll data. Supplied HTML and an end-user authentication provider are still pending.
 
-For the next implementation session, start with [the product handoff](docs/PRODUCT_HANDOFF.md). It captures the user journey, priorities, acceptance checks, and remaining inputs without reopening infrastructure decisions.
+For the next session, start with [the current session handoff](docs/NEXT_SESSION_HANDOFF.md), including the unresolved CloudVM configuration mismatch and verified infrastructure state. Then read [the product handoff](docs/PRODUCT_HANDOFF.md) for the user journey and acceptance checks.
 
 ## Local development
 

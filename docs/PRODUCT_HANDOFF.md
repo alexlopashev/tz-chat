@@ -2,6 +2,8 @@
 
 ## Start here
 
+First read `docs/NEXT_SESSION_HANDOFF.md` for current verification, provisioned Neon resources, and the unresolved CloudVM settings/file-binding mismatch. It supersedes the historical infrastructure availability statements below; this document remains the product behavior specification.
+
 The next session should turn this foundation into a useful polling conversation product. Keep the agreed stack and deployment setup. Work on user behavior and a thin end-to-end product flow; revisit infrastructure only when an observed blocker prevents that flow.
 
 Read this file, `AGENTS.md`, and the relevant installed Next.js guides before changing application code. Use the existing checkout; cloud tasks are already isolated, so do not create another worktree unless requested. Read `README.md` for commands and configuration, and `docs/PROGRESS.md` for prior verification. The original exploratory handoff is background; the decisions recorded here reflect the user's later choices.
