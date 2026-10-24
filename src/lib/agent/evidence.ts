@@ -121,7 +121,11 @@ const average = z.object({
   current_average: z
     .object({
       results: z.array(
-        z.object({ name: z.string(), value: z.number().finite().nullable() }),
+        z.object({
+          name: z.string(),
+          party: z.string().nullable().optional(),
+          value: z.number().finite().nullable(),
+        }),
       ),
       as_of: z.string().nullable().optional(),
       date_label: z.string().nullable().optional(),
@@ -221,6 +225,18 @@ export function historySeries(data: Record<string, unknown>) {
   ];
   const series = names.map((name) => ({
     name,
+    party: (() => {
+      const parties = [
+        ...new Set(
+          rows.flatMap((row) =>
+            row[1]
+              .filter((candidate) => candidate[0] === name && candidate[1])
+              .map((candidate) => candidate[1]),
+          ),
+        ),
+      ];
+      return parties.length === 1 ? parties[0] : null;
+    })(),
     points: rows.map((row) => {
       const value =
         row[1].find((candidate) => candidate[0] === name)?.[2] ?? null;

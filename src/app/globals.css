@@ -790,11 +790,14 @@ tbody tr:nth-child(even) {
   background: #f5f5f6;
 }
 .average-table tbody {
-  background: #ffedb5;
-  font-weight: 700;
+  font-weight: 600;
 }
-.average-table tbody tr {
-  background: transparent;
+.average-table td:last-child {
+  text-align: right;
+  font-weight: 750;
+}
+.average-table th:last-child {
+  text-align: right;
 }
 .evidence-result {
   margin: 16px 0;
@@ -1496,4 +1499,76 @@ tbody tr:nth-child(even) {
 }
 .response-metadata {
   overflow-wrap: anywhere;
+}
+
+/* Quiet data surfaces; party colors carry the chart semantics. */
+.party-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 7px;
+}
+.chart-inspector {
+  margin-top: 16px;
+}
+.chart-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 12px;
+}
+.chart-lead {
+  background: #f0ebf5;
+  border-radius: 20px;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+.chart-readings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.chart-readings > div {
+  border-top: 3px solid;
+  background: var(--wash);
+  border-radius: 4px;
+  padding: 10px;
+  min-width: 0;
+}
+.chart-readings span {
+  display: block;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.chart-readings strong {
+  display: block;
+  font-size: 25px;
+  margin: 7px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-readings small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.chart-scrubber {
+  display: grid;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.chart-scrubber input {
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.history-chart {
+  background: white;
+}
+.history-chart svg {
+  cursor: crosshair;
 }

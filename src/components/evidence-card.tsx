@@ -3,6 +3,7 @@ import {
   isEvidence,
   historyChanges,
 } from "@/lib/agent/evidence";
+import { partyStyle } from "@/lib/polling-display";
 import { HistoryChart } from "./history-chart";
 
 export function EvidenceCard({ output }: { output: unknown }) {
@@ -35,7 +36,18 @@ export function EvidenceCard({ output }: { output: unknown }) {
               <tbody>
                 {race.current_average?.results.map((candidate, i) => (
                   <tr key={i}>
-                    <td>{candidate.name}</td>
+                    <td>
+                      <span
+                        className="party-dot"
+                        style={{
+                          background: partyStyle(candidate.party).color,
+                        }}
+                      />
+                      {candidate.name}
+                      {candidate.party
+                        ? ` (${partyStyle(candidate.party).label})`
+                        : ""}
+                    </td>
                     <td>
                       {candidate.value === null
                         ? "Not available"
