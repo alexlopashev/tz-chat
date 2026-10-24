@@ -163,30 +163,34 @@ export function ChatHistory({
   return (
     <>
       <section aria-label="Pinned chats" className="pinned-chats">
-        <h2>Pinned</h2>
-        <ul className="chat-list">
-          {pinned.map((chat) => (
-            <ChatHistoryItem
-              key={chat.id}
-              chat={chat}
-              selectedId={selectedId}
-              disabled={disabled}
-            />
-          ))}
-        </ul>
+        <details className="history-group" open>
+          <summary>Pinned</summary>
+          <ul className="chat-list">
+            {pinned.map((chat) => (
+              <ChatHistoryItem
+                key={chat.id}
+                chat={chat}
+                selectedId={selectedId}
+                disabled={disabled}
+              />
+            ))}
+          </ul>
+        </details>
       </section>
       <section aria-label="Recent chats">
-        <h2>Recent chats</h2>
-        <ul className="chat-list">
-          {recent.map((chat) => (
-            <ChatHistoryItem
-              key={chat.id}
-              chat={chat}
-              selectedId={selectedId}
-              disabled={disabled}
-            />
-          ))}
-        </ul>
+        <details className="history-group" open>
+          <summary>Recent chats</summary>
+          <ul className="chat-list">
+            {recent.map((chat) => (
+              <ChatHistoryItem
+                key={chat.id}
+                chat={chat}
+                selectedId={selectedId}
+                disabled={disabled}
+              />
+            ))}
+          </ul>
+        </details>
         {!conversations.length && (
           <p>
             Your conversations will appear here. They stay with your RCP

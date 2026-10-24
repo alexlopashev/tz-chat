@@ -25,7 +25,7 @@ export function EvidenceCard({ output }: { output: unknown }) {
             Updated {race.current_average?.as_of ?? "date unavailable"}
           </p>
           <div className="table-scroll">
-            <table>
+            <table className="average-table">
               <thead>
                 <tr>
                   <th>Candidate</th>

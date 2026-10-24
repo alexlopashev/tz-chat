@@ -1,7 +1,7 @@
 import { historySeries } from "@/lib/agent/evidence";
 
 const colors = [
-  "#b31b34",
+  "#542779",
   "#246b9b",
   "#5d7438",
   "#8158a0",
@@ -69,9 +69,7 @@ export function HistoryChart({ data }: { data: Record<string, unknown> }) {
                     r="3"
                     fill={colors[index % colors.length]}
                   >
-                    <title>
-                      {candidate.name}: {point.value}% on {point.date}
-                    </title>
+                    <title>{`${candidate.name}: ${point.value}% on ${point.date}`}</title>
                   </circle>
                 ),
               )}

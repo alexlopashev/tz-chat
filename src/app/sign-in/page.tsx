@@ -1,13 +1,11 @@
 import { redirect } from "next/navigation";
 import { currentSession } from "@/lib/auth/session";
-import { SiteHeader } from "@/components/site-header";
 import { SignInForm } from "@/components/sign-in-form";
 
 export default async function SignIn() {
   if (await currentSession()) redirect("/");
   return (
-    <div className="app-shell">
-      <SiteHeader />
+    <div className="app-shell sign-in-shell">
       <main className="sign-in-layout">
         <section className="sign-in-story" aria-labelledby="welcome-title">
           <span className="section-label">Sources first. Context always.</span>

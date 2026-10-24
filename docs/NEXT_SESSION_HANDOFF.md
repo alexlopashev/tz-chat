@@ -2,6 +2,16 @@
 
 Updated October 24, 2026. Start with this file for current infrastructure state, then read `docs/PRODUCT_HANDOFF.md` for the product requirements and acceptance checks. This file supersedes older statements about unprovisioned databases, unsupported ESLint 10, and unverified deployment/model availability.
 
+## RCP-themed overlay workspace — October 24, 2026
+
+The user requested a RealClearPolling-styled overlay rather than a standalone research page, then authorized a simple landing-page mock if the site cannot be framed. The app now uses deep purple, yellow highlights, sans-serif headings and light dividers based on the supplied screenshot. A labeled static landing-page mock is the default backdrop; it contains no invented polling results. “Try live website” mounts the real `https://www.realclearpolling.com/` iframe, and “Use preview backdrop” restores the mock. Open-site and reload controls are available. Direct fetch and Chromium both received HTTP 403 from the live site in this environment; framing policy is not established and successful live website rendering is not claimed. Do not bypass that site restriction.
+
+The right panel starts at 520px, can be dragged from 360px to full-window width, supports keyboard arrows/Home/End and double-click resizing, and has explicit Expand/Restore and Minimize/Reopen controls. The root-layout shell persists through navigation; minimizing preserves chat state/drafts. On mobile the panel occupies the viewport. History starts collapsed, opens above the chat at narrow widths, and becomes a left sidebar at widths of 850px or more. Pinned/Recent groups also collapse independently. Container queries respond to panel width rather than the background viewport. Messages and history scroll independently; the composer remains anchored. Sign-in uses the same themed panel.
+
+The backdrop does not provide page context to the agent or share application credentials. The optional iframe is cross-origin, no-referrer and sandboxed; hidden background controls become inert when expanded. No database changes or new environment variables were needed. Existing authentication, editing, Stop/Retry, pinning and title generation remain wired.
+
+All 49 tests, formatting, zero-warning lint, TypeScript and production build passed. Chromium verified mock/live switching, actual iframe URL, drag/minimum/keyboard sizing, full-window restore, narrow/full history layouts, collapsed groups, minimize/draft persistence, real chat generation, saved evidence/chart reload, independent scrolling, anchored composer and 390px layout without horizontal overflow or JS errors. A real SVG tooltip hydration mismatch found during verification was fixed by rendering each title as a single text node. Temporary test conversations were removed; production app remains running locally. Hosted layout remains unverified from this workspace.
+
 ## Composer and chat organization — October 24, 2026
 
 - Composer focus stays inside its spacing. Enter sends, Shift+Enter inserts a newline, IME composition Enter is ignored. The primary Send button becomes Stop during setup, waiting and streaming. Editing the last user question replaces that turn and regenerates the answer; cancel restores the unsent draft. Row locks, expected prior request IDs and new generation IDs protect concurrent/stale edits; earlier turns remain intact.

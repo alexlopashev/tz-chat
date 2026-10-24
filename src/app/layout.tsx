@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { PollingOverlay } from "@/components/polling-overlay";
 
 export const metadata: Metadata = {
   title: "Polling conversations | RealClear research demo",
@@ -11,7 +12,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <PollingOverlay>{children}</PollingOverlay>
+      </body>
     </html>
   );
 }
