@@ -19,7 +19,11 @@ export default async function Home({
       : null;
   return (
     <ResearchDesk
-      key={selected?.id ?? "new"}
+      key={
+        selected
+          ? `${selected.id}:${selected.messages.length}:${selected.messages.at(-1)?.status}`
+          : "new"
+      }
       userId={session.user_id}
       conversations={conversations}
       selected={selected}

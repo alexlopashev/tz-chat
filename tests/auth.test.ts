@@ -32,7 +32,7 @@ const a = randomUUID(),
 const key = randomBytes(32);
 const expires = () => new Date(Date.now() + 86400_000);
 beforeAll(async () => {
-  for (const file of ["0001_chat", "0002_identity"])
+  for (const file of ["0001_chat", "0002_identity", "0003_generation"])
     await db.exec(
       await readFile(
         new URL(`../db/migrations/${file}.sql`, import.meta.url),
@@ -202,5 +202,114 @@ describe("Account-owned history and revocable sessions (embedded Postgres)", () 
         [sessionHash(newSessionId()), b, credential],
       ),
     ).rejects.toThrow(/foreign key/i);
+  });
+});
+
+describe("Database-backed generation lifecycle", () => {
+  it("reserves once, rejects concurrent sends, and replays a completed request without duplicating it", async () => {
+    const owner = "generation-owner",
+      chat = await repo.createConversation(owner),
+      request = randomUUID();
+    const first = await repo.reserveTurn(
+      owner,
+      chat,
+      "First question",
+      request,
+    );
+    expect(first.kind).toBe("reserved");
+    if (first.kind !== "reserved") throw new Error("Not reserved");
+    expect(
+      (await repo.reserveTurn(owner, chat, "First question", request)).kind,
+    ).toBe("busy");
+    expect(
+      (await repo.reserveTurn(owner, chat, "Other question", randomUUID()))
+        .kind,
+    ).toBe("busy");
+    expect((await repo.conversation(owner, chat))?.messages).toHaveLength(2);
+    await repo.finishTurn(
+      owner,
+      chat,
+      first.assistantId,
+      first.generationId,
+      [{ type: "text", text: "Synthetic answer" }],
+      "complete",
+    );
+    expect(
+      (await repo.reserveTurn(owner, chat, "First question", request)).kind,
+    ).toBe("complete");
+    expect(
+      (await repo.reserveTurn(owner, chat, "Changed content", request)).kind,
+    ).toBe("conflict");
+    expect((await repo.conversation(owner, chat))?.messages).toHaveLength(2);
+  });
+  it("retries failed turns with a new attempt ID and rejects late completion from the old attempt", async () => {
+    const owner = "retry-owner",
+      chat = await repo.createConversation(owner),
+      request = randomUUID();
+    const first = await repo.reserveTurn(owner, chat, "Retry me", request);
+    if (first.kind !== "reserved") throw new Error("Not reserved");
+    await repo.finishTurn(
+      owner,
+      chat,
+      first.assistantId,
+      first.generationId,
+      [],
+      "failed",
+    );
+    const second = await repo.reserveTurn(owner, chat, "Retry me", request);
+    expect(second.kind).toBe("reserved");
+    if (second.kind !== "reserved") throw new Error("Not reserved");
+    expect(
+      await repo.finishTurn(
+        owner,
+        chat,
+        first.assistantId,
+        first.generationId,
+        [],
+        "complete",
+      ),
+    ).toBe(false);
+    expect(
+      await repo.finishTurn(
+        owner,
+        chat,
+        second.assistantId,
+        second.generationId,
+        [{ type: "text", text: "Recovered" }],
+        "complete",
+      ),
+    ).toBe(true);
+    expect((await repo.conversation(owner, chat))?.messages).toHaveLength(2);
+  });
+  it("recovers stale pending turns, and refuses another account's reserve or completion", async () => {
+    const owner = "stale-owner",
+      chat = await repo.createConversation(owner),
+      request = randomUUID();
+    const first = await repo.reserveTurn(owner, chat, "Recover me", request);
+    if (first.kind !== "reserved") throw new Error("Not reserved");
+    expect(
+      (await repo.reserveTurn("other-account", chat, "Recover me", request))
+        .kind,
+    ).toBe("not-found");
+    expect(
+      await repo.finishTurn(
+        "other-account",
+        chat,
+        first.assistantId,
+        first.generationId,
+        [],
+        "complete",
+      ),
+    ).toBe(false);
+    await db.query(
+      "UPDATE messages SET generation_started_at=now()-interval '3 minutes' WHERE id=$1",
+      [first.assistantId],
+    );
+    expect(
+      (await repo.conversation(owner, chat))?.messages.at(-1)?.status,
+    ).toBe("interrupted");
+    expect(
+      (await repo.reserveTurn(owner, chat, "Recover me", request)).kind,
+    ).toBe("reserved");
   });
 });

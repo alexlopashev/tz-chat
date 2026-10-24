@@ -1,6 +1,6 @@
 # RealClear conversational polling foundation
 
-Next.js + React + Vercel AI SDK, with Vercel AI Gateway and Neon Postgres selected for deployment. This is a runnable **authenticated research workspace** with RCP-token sign-in and durable account-owned question history. Live polling answers are not connected yet; no fabricated poll data is shown.
+Next.js + React + Vercel AI SDK, with Vercel AI Gateway and Neon Postgres selected for deployment. This is a runnable **authenticated research workspace** with RCP-token sign-in and durable account-owned question history. Chat now streams a bounded polling research agent using the signed-in user’s MCP connection. Live model generation still requires working AI Gateway billing/access; there is no fabricated-data fallback.
 
 For the next session, start with [the current session handoff](docs/NEXT_SESSION_HANDOFF.md), including current authentication, database, and integration state. Then read [the product handoff](docs/PRODUCT_HANDOFF.md) for the user journey and acceptance checks.
 
@@ -32,7 +32,7 @@ mise run dev
 | `mise run db:migrate`     | Explicit database migration, never automatic on deploy               |
 | `mise run deploy:preview` | Optional manual preview after all checks; requires Vercel login/link |
 
-After startup, `GET /api/health` returns `{"status":"ok","scope":"web-shell","liveChat":false}`. This checks the shell only, not model, database or MCP readiness.
+After startup, `GET /api/health` returns `{"status":"ok","scope":"web","chatEnabled":true,"integrations":"not-probed"}`. This checks the shell only, not model, database or MCP readiness.
 
 ## Vercel native Git deployments
 
@@ -52,13 +52,13 @@ The **Neon Postgres** project and separate production/preview branches are provi
 
 Run `mise run db:migrate` against a reviewed target. The migration runner discovers ordered versioned SQL files, applies each transactionally, and verifies its checksum on rerun. Existing migrations are repeatable; make future changes as new versioned migrations instead of editing an applied file. Migrations are intentionally excluded from ordinary builds to avoid simultaneous previews mutating production state.
 
-The schema stores conversations, full ordered SDK message parts, and dataset snapshots. Composite owner foreign keys prevent mismatched parent/child owners. Unique request/role and sequence keys support retry handling; a partial unique index reserves one pending assistant turn per conversation. Private history APIs now resolve a live database session and scope every conversation/message query to the RCP account ID. The browser cannot choose its owner. User-question saves use a short row-locked transaction and a unique request ID for retries. Full model-turn reservation, snapshot retrieval, and interrupted generation recovery remain future work.
+The schema stores conversations, full ordered SDK message parts, and dataset snapshots. Composite owner foreign keys prevent mismatched parent/child owners. Unique request/role and sequence keys support retry handling; a partial unique index reserves one pending assistant turn per conversation. Private history APIs now resolve a live database session and scope every conversation/message query to the RCP account ID. The browser cannot choose its owner. User-question saves use a short row-locked transaction and a unique request ID for retries. Agent turns reserve one pending response per conversation, retain complete SDK text/tool parts and evidence snapshots, and fence retries against late completion. Stale pending responses become retryable after two minutes.
 
 ## AI Gateway and MCP
 
 Set `AI_GATEWAY_MODEL` to a model available to your Vercel Gateway account. The example is a configurable starting point, not a claim about model availability. For local use, set `AI_GATEWAY_API_KEY`; Vercel-hosted calls may use supported Vercel OIDC. `src/lib/gateway.ts` creates the AI SDK model through Gateway rather than calling provider endpoints directly. Gateway also offers an OpenAI-compatible Chat Completions API; this app uses its native AI SDK provider so streamed message/tool parts stay typed. A minimal live generation returned HTTP 403 with a billing/credit indication; successful generation remains unverified.
 
-Set `RCP_MCP_URL=https://rcp.tazalabs.ai/mcp`. Browser sign-in supplies each user’s own token. The application does not read `RCP_MCP_TOKEN`; MCP connections require an explicit token from sign-in or the authenticated session’s decrypted credential. Never commit the token, include it in a client bundle, or log authenticated URLs. The transport factory sends an Authorization Bearer header. The sign-in input accepts either the raw token or a value prefixed with `Bearer `; the prefix is normalized server-side. `whoami` and tool discovery have been verified (see `docs/NEXT_SESSION_HANDOFF.md`); polling result schemas and source semantics remain unverified; no invented tool schema or silent mock fallback is present. Treat MCP content as untrusted data, and inspect/allowlist tools before exposing them to a model.
+Set `RCP_MCP_URL=https://rcp.tazalabs.ai/mcp`. Browser sign-in supplies each user’s own token. The application does not read `RCP_MCP_TOKEN`; MCP connections require an explicit token from sign-in or the authenticated session’s decrypted credential. Never commit the token, include it in a client bundle, or log authenticated URLs. The transport factory sends an Authorization Bearer header. The sign-in input accepts either the raw token or a value prefixed with `Bearer `; the prefix is normalized server-side. `whoami` and tool discovery have been verified (see `docs/NEXT_SESSION_HANDOFF.md`); live race search, published averages and historical-average formats have been inspected. Eight read-only polling tools are exposed from live discovery; `whoami` and `send_feedback` are excluded. MCP content is treated as untrusted data.
 
 The current cloud runtime reaches MCP and Neon with `NODE_USE_ENV_PROXY=1`. Keep that runtime setting separate from hosted application configuration. The sign-in and research screens use the existing red/neutral design; supplied reference HTML is still pending.
 
@@ -70,7 +70,7 @@ Set these **server-only** variables before enabling sign-in:
 
 - `APP_ORIGIN` (optional): strict public-origin override for custom reverse proxies. Normally the app derives its origin from the request Host, using HTTPS except for localhost. Origin and Host must match; client Origin and forwarded-host headers do not define the trusted origin.
 - `RCP_TOKEN_ENCRYPTION_KEY`: 32 cryptographically random bytes encoded as 64 hex characters. Keep this key stable, backed up securely, separate from the database, and consistent across instances. Changing it requires re-encrypting stored credentials or asking users to sign in again. Never commit or print it.
-- `DATABASE_URL`: intended runtime database. Apply `0002_identity` explicitly before serving sign-ins; schema migration is not a deployment build step.
+- `DATABASE_URL`: intended runtime database. Apply all migrations through `0003_generation` explicitly before serving chat; schema migration is not a deployment build step.
 
 The local workspace has a generated key and localhost origin in a gitignored, mode-0600 `.env.local`. These settings have **not** been installed into Vercel. Inherited variables take precedence. HTTPS deployments need a secure encryption key and migrated database; a separate origin setting is no longer required.
 
@@ -78,7 +78,7 @@ The database stores account IDs in `app_users`, AES-256-GCM encrypted per-sign-i
 
 Cookie-authenticated writes compare Origin with the request host (or the explicit override). Input sizes and MCP deadlines are bounded, and raw SDK/database errors are not returned to the browser. Operational failures return a reference ID; runtime logs contain only the matching reference, operation stage and an allowlisted error code (including missing/invalid token-encryption key and unavailable/unmigrated database), never credentials or raw exceptions. Each application session remains valid until its own expiry or logout; revoking an RCP token does not currently push a revocation event into this application. Future MCP calls must handle upstream token rejection by requiring reconnection. Expired/revoked sessions and encrypted credential records are retained; automated retention cleanup and account-wide session management are not implemented.
 
-History lists the 100 most recently updated chats. Existing conversation links remain accessible to their owner. The current composer **saves questions only** and clearly states that live answers are not connected. Complete model/tool history is supported by the schema but no generation endpoint exists yet.
+History lists the 100 most recently updated chats. Existing conversation links remain accessible to their owner. The composer streams answers and lookup progress, offers Stop and Retry, and reopens saved text and tool evidence. The server loads account-owned history and credentials; client-supplied history is never trusted. Research is limited to six model steps, ten MCP calls, two concurrent tool calls, 12 seconds per lookup, 90 seconds overall, 3,000 output tokens per step, 120,000 characters per tool result and 350,000 characters of saved context. Oversized context requires a new conversation.
 
 The preview uses replaceable CSS and a safe Markdown renderer with GFM tables, raw HTML disabled, images disabled, and safe external-link handling. Charts and data-driven views are follow-on work: bind React components to server-owned dataset snapshots; derive numbers, units and coverage in code; preserve provenance. Model text must never become executable JSX/HTML or independently supply chart numbers.
 
@@ -86,4 +86,4 @@ The preview uses replaceable CSS and a safe Markdown renderer with GFM tables, r
 
 `mise run ci` runs formatting, ESLint, type checking, configuration, identity, encryption, cookie/CSRF boundary tests, embedded Postgres ownership/session/history tests, and the Next.js production build. Embedded tests exercise two accounts, different tokens for one account, expiry, revocation, and duplicate requests. Live browser verification separately covers real RCP login, Neon-backed save/reload, logout, old-cookie rejection, and history after a fresh login. Two distinct real RCP accounts/tokens were not available. See [docs/OUTLINE.md](docs/OUTLINE.md) for the follow-on scope and [docs/PROGRESS.md](docs/PROGRESS.md) for actual validation and time accounting.
 
-Live model answers, polling retrieval, authenticated streaming, charts, supplied HTML integration and a verified hosted deployment remain unfinished. Gateway billing/credit is still blocked.
+Deterministic model tests verify the real SDK tool loop, follow-up replay, provider failure and cancellation. Production-build browser checks verify live sign-in, safe Gateway failure, persistence, duplicate-free retry and responsive layout. These do not establish successful live model generation: Gateway billing/credit remains blocked. Charts, supplied HTML integration and hosted chat verification remain unfinished.

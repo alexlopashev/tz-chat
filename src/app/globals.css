@@ -562,3 +562,46 @@ button {
     flex-wrap: wrap;
   }
 }
+.research-note {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+}
+.evidence-card {
+  border: 1px solid var(--line);
+  background: var(--wash);
+  padding: 16px;
+  margin: 16px 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.evidence-card summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+.evidence-card strong {
+  display: block;
+  margin-top: 18px;
+}
+.evidence-sources {
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.tool-progress {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 12px;
+  background: var(--wash);
+}
+.stream-status {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  font-size: 13px;
+  color: var(--muted);
+}

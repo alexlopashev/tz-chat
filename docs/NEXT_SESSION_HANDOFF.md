@@ -2,6 +2,22 @@
 
 Updated October 24, 2026. Start with this file for current infrastructure state, then read `docs/PRODUCT_HANDOFF.md` for the product requirements and acceptance checks. This file supersedes older statements about unprovisioned databases, unsupported ESLint 10, and unverified deployment/model availability.
 
+## Current priority: finish live agent verification — October 24, 2026
+
+The user confirmed hosted sign-in works and requested agentic chat over their MCP connection. The chat agent is implemented; older save-only/disabled-composer sections below are historical.
+
+- Server resolves the session’s encrypted RCP credential, discovers schemas and exposes eight read-only polling tools. `whoami` and `send_feedback` are excluded. The app never uses an environment MCP token.
+- AI SDK streams a bounded multi-step tool loop with account-owned server history. Questions, complete text/tool parts and normalized evidence snapshots persist in messages. Follow-ups replay saved evidence. Average tables use MCP values; historical support changes are calculated from actual returned endpoints, preserving nulls, coverage and URLs.
+- UI shows tool progress, streaming prose, evidence, Stop and Retry. Row-locked reservation, unique request IDs, per-attempt generation IDs and a two-minute stale threshold protect concurrent sends and interrupted retries. Migration `0003_generation` is applied to preview and production.
+- Limits: six model steps, ten MCP calls, concurrency two, 12 seconds per lookup, 90 seconds overall, 3,000 output tokens per step, 120,000 characters per tool result, 350,000 characters of historical context. Failures remain explicit and retryable, without invented answers. Full final tool evidence is retained with the message; separate datasets/chart records are not implemented.
+- Formatting, zero-warning lint, TypeScript, all 42 tests and production build pass. Tests cover the actual SDK loop with a deterministic model, complete history replay, cancellation, safe provider errors, and database reservation/retry/stale fencing and account isolation.
+- Chromium against the production build verified real login, persisted Gateway failure, duplicate-free retry, reload and fresh-login history, logout, CSRF/anonymous rejection, 390px layout, and no browser JavaScript errors. Test conversations were removed. Local app runs without an environment MCP token or APP_ORIGIN override.
+- **Remaining blocker:** the current local Gateway credential still returns HTTP 403 with a billing/credit indication for minimal generation. Successful live AI answers have not been verified. No mock fallback was added. Once Gateway access is restored, verify a sourced live turn, follow-up, cancellation and reopened conversation, then hosted chat. The workspace proxy still blocks the Vercel application hostname; a successful deployment status is not a hosted chat test.
+
+### Next verification
+
+Restore Gateway billing/access for the intended environment, then ask a current Maine Senate question and a historical follow-up. Race discovery supports text query `Maine` and facet state `me`; inspected race 9100 is the 2026 Senate race. Historical output is columns `date,results,spread`, with candidate tuples and an unsigned spread; never interpret it as a signed party margin. Check actual returned dates against requested bounds. `/api/health` reports chat capability and `integrations: not-probed`, not external service readiness.
+
 ## Sign-in origin fallback and safe diagnostics — October 24, 2026
 
 The user reported a generic sign-in failure at `https://tz-chat-alexlopashev-gmailcoms-projects.vercel.app/sign-in`. The previous code required `APP_ORIGIN` before validating the token; absent configuration caused the exact generic error. Local checks had an origin configured and missed that scenario. Hosted root cause is not confirmed: this workspace's proxy rejects CONNECT to the Vercel app hostname with HTTP 403 and Vercel CLI is unauthenticated. GitHub reported the prior deployment successful, which does not verify runtime sign-in.

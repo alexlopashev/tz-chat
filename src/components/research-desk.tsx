@@ -1,10 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, isToolUIPart, getToolName } from "ai";
 import type { Conversation, SavedMessage } from "@/lib/repository";
+import { toChatMessages, type ChatMessage } from "@/lib/chat-types";
 import { SiteHeader } from "./site-header";
 import { RichMessage } from "./rich-message";
+import { EvidenceCard } from "./evidence-card";
 
 type Selected = Conversation & { messages: SavedMessage[] };
 export function ResearchDesk({
@@ -20,83 +24,102 @@ export function ResearchDesk({
 }) {
   const router = useRouter();
   const [question, setQuestion] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [messages, setMessages] = useState(selected?.messages ?? []);
-  const pending = useRef<{
-    text: string;
-    requestId: string;
-    id?: string;
-  } | null>(null);
-  async function request(path: string, body?: unknown) {
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const conversationId = useRef(selected?.id);
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport<ChatMessage>({
+        prepareSendMessagesRequest: ({ messages, body }) => {
+          const message = messages.findLast((m) => m.role === "user");
+          return {
+            api: "/api/conversations/" + body?.conversationId + "/messages",
+            body: {
+              text: message?.parts
+                .filter((part) => part.type === "text")
+                .map((part) => part.text)
+                .join("\n"),
+              requestId: message?.metadata?.requestId ?? message?.id,
+            },
+          };
+        },
+        fetch: async (input, init) => {
+          const response = await fetch(input, init);
+          if (response.ok) return response;
+          const data = await response
+            .json()
+            .catch(() => ({ error: "The request failed. Please try again." }));
+          return new Response(data.error, {
+            status: response.status,
+            headers: { "Content-Type": "text/plain" },
+          });
+        },
+      }),
+    [],
+  );
+  function syncLocation() {
+    if (conversationId.current)
+      router.replace("/?chat=" + conversationId.current);
+    router.refresh();
+  }
+  const { messages, sendMessage, regenerate, stop, status, error, clearError } =
+    useChat<ChatMessage>({
+      id: selected?.id,
+      messages: selected ? toChatMessages(selected.messages) : [],
+      generateId: () => crypto.randomUUID(),
+      transport,
+      throttle: 50,
+      onFinish: syncLocation,
+    });
+  const busy = accountBusy || status === "submitted" || status === "streaming";
+  const last = messages.at(-1);
+  const retryable =
+    !busy &&
+    (Boolean(error) ||
+      last?.metadata?.status === "failed" ||
+      last?.metadata?.status === "interrupted");
+  async function request(path: string) {
     const response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body ?? {}),
-      signal: AbortSignal.timeout(25_000),
+      body: "{}",
     });
     const data = await response.json();
-    if (response.status === 401) {
-      router.replace("/sign-in");
-      router.refresh();
-      throw new Error("Please sign in again.");
-    }
-    if (!response.ok)
-      throw new Error(data.error ?? "Something went wrong. Please try again.");
+    if (!response.ok) throw new Error(data.error ?? "The request failed.");
     return data;
   }
   async function signOut() {
-    setBusy(true);
-    setError("");
+    setAccountBusy(true);
+    setActionError("");
     try {
       await request("/api/auth/sign-out");
       router.replace("/sign-in");
       router.refresh();
     } catch {
-      setError("Couldn't sign out. Please try again.");
-      setBusy(false);
+      setActionError("Couldn't sign out. Please try again.");
+    } finally {
+      setAccountBusy(false);
     }
   }
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !question.trim()) return;
-    setBusy(true);
-    setError("");
+    setAccountBusy(true);
+    setActionError("");
+    clearError();
     try {
+      if (!conversationId.current)
+        conversationId.current = (await request("/api/conversations")).id;
       const text = question.trim();
-      if (!pending.current || pending.current.text !== text)
-        pending.current = {
-          text,
-          requestId: crypto.randomUUID(),
-          id: pending.current?.id ?? selected?.id,
-        };
-      const turn = pending.current;
-      if (!turn.id) turn.id = (await request("/api/conversations")).id;
-      await request(`/api/conversations/${turn.id}/messages`, {
-        text,
-        requestId: turn.requestId,
-      });
-      setMessages([
-        ...messages,
-        {
-          id: turn.requestId,
-          role: "user",
-          parts_json: [{ type: "text", text }],
-          status: "complete",
-        },
-      ]);
       setQuestion("");
-      pending.current = null;
-      router.push(`/?chat=${turn.id}`);
-      router.refresh();
-    } catch (e) {
-      setError(
-        e instanceof Error && e.name !== "TimeoutError"
-          ? e.message
-          : "The save timed out. Retry to check whether your question was saved.",
+      await sendMessage(
+        { text },
+        { body: { conversationId: conversationId.current } },
       );
+    } catch {
+      setActionError("Couldn't send the question. Please try again.");
     } finally {
-      setBusy(false);
+      setAccountBusy(false);
     }
   }
   return (
@@ -138,7 +161,7 @@ export function ResearchDesk({
               {conversations.map((chat) => (
                 <li key={chat.id}>
                   <Link
-                    href={`/?chat=${chat.id}`}
+                    href={"/?chat=" + chat.id}
                     aria-current={selected?.id === chat.id ? "page" : undefined}
                   >
                     {chat.title}
@@ -148,7 +171,7 @@ export function ResearchDesk({
             </ul>
           ) : (
             <p>
-              Your saved questions will appear here. They stay with your RCP
+              Your conversations will appear here. They stay with your RCP
               account.
             </p>
           )}
@@ -171,13 +194,10 @@ export function ResearchDesk({
           <p className="intro">
             Start with a question. Your research stays here when you return.
           </p>
-          <div className="notice" role="note">
-            <strong>History is ready. Live answers are coming next.</strong>
-            <p>
-              You can save and reopen questions now. AI responses are not
-              connected yet; saving a question does not generate an answer.
-            </p>
-          </div>
+          <p className="research-note">
+            Answers use RCP sources. Check the dates and coverage alongside the
+            evidence.
+          </p>
           <div className="message-list" aria-live="polite">
             {messages.map((message) => (
               <article className="message saved-message" key={message.id}>
@@ -186,14 +206,47 @@ export function ResearchDesk({
                     ? "Your question"
                     : "Research assistant"}
                 </span>
-                {message.parts_json.map((part, index) =>
-                  part.type === "text" && part.text ? (
-                    <RichMessage key={index} text={part.text} />
-                  ) : null,
-                )}
-                {message.status !== "complete" && (
-                  <p className="field-help">Response {message.status}.</p>
-                )}
+                {message.parts.map((part, index) => {
+                  if (part.type === "text")
+                    return <RichMessage key={index} text={part.text} />;
+                  if (
+                    part.type === "data-error" &&
+                    typeof part.data === "string"
+                  )
+                    return (
+                      <p className="form-error" key={index}>
+                        {part.data}
+                      </p>
+                    );
+                  if (isToolUIPart(part)) {
+                    if (part.state === "output-available")
+                      return <EvidenceCard key={index} output={part.output} />;
+                    if (part.state === "output-error")
+                      return (
+                        <p className="field-help" key={index}>
+                          An RCP lookup failed. {part.errorText}
+                        </p>
+                      );
+                    return (
+                      <p className="tool-progress" key={index}>
+                        Looking up RCP data ·{" "}
+                        {getToolName(part).replaceAll("_", " ")}…
+                      </p>
+                    );
+                  }
+                  return null;
+                })}
+                {message.metadata?.status &&
+                  message.metadata.status !== "complete" &&
+                  message.role === "assistant" && (
+                    <p className="field-help">
+                      Response{" "}
+                      {message.metadata.status === "pending" && !busy
+                        ? "in progress; reload shortly"
+                        : message.metadata.status}
+                      .
+                    </p>
+                  )}
               </article>
             ))}
           </div>
@@ -214,21 +267,59 @@ export function ResearchDesk({
               onChange={(e) => setQuestion(e.target.value)}
               maxLength={4000}
               disabled={busy}
-              placeholder="What has changed in the Senate races?"
+              placeholder="What has changed in the Maine Senate race?"
               required
               aria-describedby="save-help"
             />
             <div>
-              <p id="save-help">Saved privately to your RCP account.</p>
+              <p id="save-help">
+                Your questions and sourced answers are saved to your account.
+              </p>
               <button type="submit" disabled={busy || !question.trim()}>
-                {busy ? "Saving…" : "Save question ↑"}
+                {busy ? "Researching…" : "Send question ↑"}
               </button>
             </div>
           </form>
-          {error && (
+          {busy && (
+            <div className="stream-status" role="status">
+              {status === "streaming"
+                ? "Writing your answer…"
+                : "Researching your question…"}{" "}
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => stop()}
+              >
+                Stop
+              </button>
+            </div>
+          )}
+          {(actionError || error) && (
             <p role="alert" className="form-error">
-              {error}
+              {actionError || error?.message}
             </p>
+          )}
+          {retryable && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                clearError();
+                regenerate({
+                  body: { conversationId: conversationId.current },
+                });
+              }}
+            >
+              Retry answer
+            </button>
+          )}
+          {!busy && last?.metadata?.status === "pending" && (
+            <button
+              className="secondary-button"
+              onClick={() => window.location.reload()}
+            >
+              Reload response
+            </button>
           )}
         </section>
       </main>
