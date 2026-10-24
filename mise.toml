@@ -2,6 +2,7 @@ min_version = "2026.10.18"
 
 [tools]
 "npm:npm" = "12.2.1"
+"npm:vercel" = "65.2.0"
 node = "24.22.1"
 
 [tasks.install]
@@ -46,4 +47,4 @@ run = "node --env-file-if-exists=.env.local scripts/migrate.mjs"
 
 [tasks."deploy:preview"]
 description = "Validate then deploy a preview using local Vercel authentication"
-run = ["mise run ci", "npm exec -- vercel deploy"]
+run = ["mise run ci", "vercel deploy"]

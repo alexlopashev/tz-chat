@@ -38,24 +38,22 @@
     "@types/node": "24.19.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "eslint": "9.39.5",
+    "eslint": "10.13.0",
     "eslint-config-next": "16.4.3",
     "prettier": "3.9.10",
     "typescript": "6.0.3",
-    "vercel": "65.2.0",
     "vitest": "5.0.5"
   },
   "overrides": {
-    "ajv@8": "8.20.0",
-    "js-yaml@4": "4.3.2",
-    "minimatch@10": "10.2.6",
-    "path-to-regexp@6": "6.3.0",
-    "path-to-regexp@8": "8.4.2",
-    "smol-toml@1": "1.9.1",
-    "tar@7": "7.5.22",
-    "undici@5": "5.29.0",
-    "zod@3": "3.25.76",
-    "zod@4": "$zod"
+    "eslint-plugin-import": {
+      "eslint": "$eslint"
+    },
+    "eslint-plugin-jsx-a11y": {
+      "eslint": "$eslint"
+    },
+    "eslint-plugin-react": {
+      "eslint": "$eslint"
+    }
   },
   "allowScripts": {
     "esbuild@0.27.0": true,

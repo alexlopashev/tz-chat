@@ -16,7 +16,7 @@ cp .env.example .env.local # only when this file does not already exist
 mise run dev
 ```
 
-`mise.toml` pins Node **24.22.1** and npm **12.2.1**. Its `min_version` is the latest mise release verified during setup, not a Node version range. TypeScript, Vercel CLI, and other project tools are exact dependencies in `package.json` and `package-lock.json`, installed by `mise run install`. TypeScript and ESLint use the latest versions compatible with Next.js’s current lint plugins (see `docs/PROGRESS.md`). This keeps the CLI and compiler identical in local work and deployment, instead of maintaining competing global installations. Run `mise exec -- npm exec -- vercel --version` to verify the CLI.
+`mise.toml` pins Node **24.22.1**, npm **12.2.1**, and the optional Vercel CLI **65.2.0**. Its `min_version` is the latest mise release verified during setup, not a Node version range. Compiler, lint and application dependencies are pinned in `package.json` and `package-lock.json`, installed by `mise run install`. TypeScript 6 stays within the lint parser's supported range. ESLint 10 uses Next.js 16.4's compatibility fixes, with targeted peer overrides for plugins whose metadata still excludes ESLint 10. Run `mise exec -- vercel --version` to verify the optional CLI. Vercel-hosted builds use the platform's CLI and do not install our local deployment CLI or its dependencies.
 
 | Command                   | Purpose                                                              |
 | ------------------------- | -------------------------------------------------------------------- |
@@ -38,7 +38,9 @@ After startup, `GET /api/health` returns `{"status":"ok","scope":"web-shell","li
 
 The project is already connected to GitHub. **No second GitHub Actions deployment workflow is needed.** Vercel builds previews for branches/PRs and production for its configured production branch (`main`).
 
-`vercel.json` pins the installation command to npm 12.2.1 and makes `npm run verify && npm run build` the deployment gate. Formatting, lint, typecheck or test failures cause the Vercel build to fail; the existing successful production deployment remains active. This gate runs inside Vercel, not as a separate GitHub Actions job. Enable the Vercel status check in GitHub branch protection if merges must also be gated. Vercel does not run mise: it selects Node 24 from `engines`; its managed patch must satisfy the declared minimum 24.22.1. If its runtime lags, the strict install will stop rather than silently use an older version.
+`vercel.json` runs `scripts/vercel.mjs` for installation and builds. Installation uses npm 12.2.1. The build formats the deployed `vercel.json`, then runs `npm run verify && npm run build`. The configuration stays included in formatting checks; source formatting, lint, typecheck or test failures still stop deployment. The wrapper translates Vercel's legacy `npm_config_cache_dir` to npm's supported `npm_config_cache`, preserving an explicitly configured cache. Vercel automatically persists Next.js build caches after successful builds; a first build or a build after failed deployments may have no cache to restore.
+
+This gate runs inside Vercel, not as a separate GitHub Actions job. Enable the Vercel status check in GitHub branch protection if merges must also be gated. Vercel does not run mise: it selects Node 24 from `engines`; its managed patch must satisfy the declared minimum 24.22.1. If its runtime lags, the strict install will stop rather than silently use an older version.
 
 In Vercel settings, verify root directory is the repository root, framework is Next.js, production branch is `main`, Node is 24.x, and repository build/install commands are not overridden. Do not configure `output: export`; the application will need server-side routes.
 

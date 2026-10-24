@@ -11,7 +11,7 @@ Read this file, `AGENTS.md`, and the relevant installed Next.js guides before ch
 - Next.js App Router, React and TypeScript, Vercel AI SDK, and Vercel AI Gateway for model calls.
 - Vercel project already exists and is connected to GitHub. Native Git deployment builds run formatting, lint, type checks, tests and production build. No duplicate GitHub Actions deployment pipeline.
 - Neon Postgres for durable chat state. No deployed local SQLite database.
-- Mise owns the pinned Node/npm toolchain and development commands. Exact project dependencies and the lockfile own compiler/CLI versions. Do not spend the product session upgrading this working toolchain.
+- Mise owns the pinned Node/npm toolchain, optional Vercel CLI and development commands. Exact project dependencies and the lockfile own compiler/lint versions. Do not spend the product session upgrading this working toolchain.
 - One conversational agent with bounded tool execution. No multi-agent orchestration, vector database, or workflow engine.
 - Authentication must identify the actual application user on the server. Vercel deployment protection does not do that. No production anonymous fallback.
 

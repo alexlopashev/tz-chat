@@ -10,7 +10,7 @@ Repository foundation started October 24, 2026, approximately 9:21 a.m. America/
 - Use native Vercel Git deployments with checks in the build gate; omit a duplicate GitHub deployment workflow.
 - User confirmed Neon Postgres.
 - End-user authentication provider and supplied HTML are still unspecified.
-- Node 24.22.1 and mise 2026.10.18 were verified against upstream releases. npm is pinned at 12.2.1. TypeScript 6.0.3 is the newest version supported by the installed TypeScript ESLint parser (`<6.1`); upstream TypeScript 7 is not used with an unsupported lint parser. ESLint 9.39.5 is pinned because the current React and accessibility plugins exclude ESLint 10 from their peer support.
+- Node 24.22.1 and mise 2026.10.18 were verified against upstream releases. npm is pinned at 12.2.1. TypeScript 6.0.3 is the newest version supported by the installed TypeScript ESLint parser (`<6.1`); upstream TypeScript 7 is not used with an unsupported lint parser. ESLint was initially pinned to 9.39.5 pending verification of Next.js's ESLint 10 compatibility fixes; see the build-warning maintenance below.
 
 ## Implemented
 
@@ -48,8 +48,18 @@ The user subsequently authorized pushing the foundation and requested a product-
 
 `vercel.json` remains included in the formatting gate. Running the pinned Prettier on the committed file produces no changes; the reported Vercel formatting failure has not been reproduced locally.
 
-Direct dependencies were checked against the registry. They already use the latest stable versions compatible with Node 24 and the lint plugins; ESLint 10 and TypeScript 7 remain incompatible as described above. The lockfile was refreshed, and version-scoped overrides update Vercel CLI's pinned transitive dependencies within their existing major versions: Ajv, js-yaml, minimatch, path-to-regexp, smol-toml, tar, Undici and Zod. The Zod 4 override follows the application's exact Zod pin. Remove these overrides when upstream dependencies adopt the patched versions.
+At the initial maintenance checkpoint, direct dependencies were checked against the registry. TypeScript 7 was outside the lint parser's supported range, and ESLint 10 was deferred pending compatibility verification. The lockfile was refreshed, and version-scoped overrides updated Vercel CLI's pinned transitive dependencies within their existing major versions: Ajv, js-yaml, minimatch, path-to-regexp, smol-toml, tar, Undici and Zod. These CLI overrides were subsequently removed when the optional CLI moved out of the application dependency tree.
 
 The full audit fell from 33 findings (12 moderate, 20 high, 1 critical) to 16 (6 moderate, 10 high, 0 critical). Remaining findings originate in the latest Vercel CLI's Zod 3 and Undici 5 dependency trees, including Undici's multipart parser. Updating those to their latest versions within the same major does not clear the advisories. They need upstream fixes or a separately verified major migration; `npm audit fix --force` currently proposes downgrading Vercel CLI to 53.2.0. These findings remain unresolved.
 
 Validation: clean installation with npm 12.2.1 succeeded, followed by formatting, lint, type checking, all 9 tests and a production build. The production-only audit reports zero vulnerabilities. Vercel CLI's version and build help load with the overrides; this does not verify authenticated deployment or every CLI code path.
+
+## Build-warning maintenance
+
+Vercel reported the same formatting failure again for a configuration that passed the local formatter unchanged. The hosted build now explicitly formats its copy of `vercel.json` before running every verification gate. No file was added to `.prettierignore`. The install/build wrapper translates the legacy cache-directory environment option to npm's supported cache option for all child commands. Vercel manages the Next.js build cache automatically; the absence of a previous cache is informational.
+
+The optional Vercel CLI is now pinned through mise instead of being installed with application dependencies. This removes the hosted build's ignored-CLI warning and the CLI's vulnerable dependency tree from the application lockfile. It does not fix vulnerabilities in the separately installed administration tool. The project audit now reports zero vulnerabilities, including development dependencies.
+
+Next.js 16.4.3's installed documentation and configuration include ESLint 10 compatibility fixes for the legacy React/import rule APIs. ESLint was upgraded to 10.13.0. Targeted peer overrides select that version for the import, accessibility and React plugins, whose peer metadata still excludes 10; other plugins already declare support. TypeScript remains at 6.0.3 within the parser's supported range.
+
+Validation: the actual Vercel install wrapper completed a clean npm 12.2.1 install without cache-option or ESLint deprecation warnings. The build wrapper normalized a deliberately minified `vercel.json` and passed formatting, lint, type checks, all 9 tests and the production build. A deliberately unformatted application source file still blocked the build. Separate checks covered uppercase cache-option translation, preservation of an explicit cache location, and stopping after a verification failure. Invalid JSX still triggered accessibility, React Hooks and Next.js lint rules under ESLint 10. The optional CLI installed successfully through mise. Hosted deployment and cache restoration remain unverified locally.
