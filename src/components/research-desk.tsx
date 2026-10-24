@@ -12,6 +12,7 @@ import { draftKey, readDraft, writeDraft } from "@/lib/drafts";
 import { RichMessage } from "./rich-message";
 import { ChatHistory } from "./chat-history";
 import { ToolCall } from "./tool-call";
+import { useHistoryPanel } from "./polling-overlay";
 import { ResearchWaiting } from "./research-waiting";
 
 type Selected = Conversation & { messages: SavedMessage[] };
@@ -29,7 +30,7 @@ export function ResearchDesk({
   missing: boolean;
 }) {
   const router = useRouter();
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const { historyOpen, setHistoryOpen } = useHistoryPanel();
   const scrollArea = useRef<HTMLDivElement>(null);
   const followResponse = useRef(true);
   const [question, setQuestion] = useState("");
@@ -356,11 +357,7 @@ export function ResearchDesk({
             <path d="M9 4v16M5.5 8h1M5.5 12h1" />
           </svg>
         </button>
-        <Link
-          href="/"
-          className="new-chat"
-          onClick={() => setHistoryOpen(false)}
-        >
+        <Link href="/" className="new-chat">
           ＋ New chat
         </Link>
         <div className="account-controls">
@@ -384,10 +381,6 @@ export function ResearchDesk({
             aria-label="Chat history"
             onKeyDown={(event) => {
               if (event.key === "Escape") setHistoryOpen(false);
-            }}
-            onClick={(event) => {
-              if ((event.target as HTMLElement).closest("a"))
-                setHistoryOpen(false);
             }}
           >
             <div className="history-heading">

@@ -1,8 +1,26 @@
 "use client";
-import { useRef, useState, type CSSProperties } from "react";
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { RcpBackdrop } from "./rcp-backdrop";
 
+const HistoryPanelContext = createContext<{
+  historyOpen: boolean;
+  setHistoryOpen: (open: boolean) => void;
+} | null>(null);
+
+export function useHistoryPanel() {
+  const state = useContext(HistoryPanelContext);
+  if (!state) throw new Error("History panel requires PollingOverlay");
+  return state;
+}
+
 export function PollingOverlay({ children }: { children: React.ReactNode }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [width, setWidth] = useState(520);
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(false);
@@ -187,7 +205,11 @@ export function PollingOverlay({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <div className="overlay-body">{children}</div>
+        <div className="overlay-body">
+          <HistoryPanelContext.Provider value={{ historyOpen, setHistoryOpen }}>
+            {children}
+          </HistoryPanelContext.Provider>
+        </div>
       </section>
       {!open && (
         <button
