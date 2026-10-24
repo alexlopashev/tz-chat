@@ -656,3 +656,162 @@ button {
 .chart-values summary {
   cursor: pointer;
 }
+/* Keep the composer focus treatment inside its own spacing. */
+.composer {
+  border-radius: 12px;
+  padding: 18px;
+  background: #fff;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.composer .composer-heading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: 24px;
+}
+.composer textarea {
+  display: block;
+  box-sizing: border-box;
+  margin: 12px 0;
+  padding: 12px 14px;
+  min-height: 110px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--wash);
+  line-height: 1.6;
+}
+.composer textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.composer .composer-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.composer-footer p {
+  margin: 0;
+  flex: 1 1 170px;
+  line-height: 1.6;
+}
+.composer-footer button {
+  border-radius: 7px;
+  min-width: 130px;
+  margin-left: auto;
+}
+.composer .edit-help {
+  margin: 6px 0 0;
+}
+.edit-message-button {
+  margin-left: 12px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.stop-button {
+  background: var(--ink);
+}
+.pinned-chats {
+  margin-top: 24px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.chat-history-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.chat-history-row > a {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chat-history-item {
+  position: relative;
+}
+.chat-actions {
+  margin: 8px 0;
+}
+.chat-actions summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1;
+}
+.chat-actions summary::-webkit-details-marker {
+  display: none;
+}
+.chat-actions summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.chat-action-menu {
+  position: absolute;
+  right: 0;
+  top: 34px;
+  z-index: 5;
+  min-width: 165px;
+  background: white;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px #00000014;
+}
+.chat-action-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  padding: 10px;
+  background: transparent;
+  color: var(--ink);
+  border-radius: 4px;
+}
+.chat-action-menu button:hover {
+  background: var(--wash);
+}
+.rename-chat {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.rename-chat label {
+  font-size: 12px;
+  display: block;
+  margin-bottom: 8px;
+}
+.rename-chat input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line);
+  font: inherit;
+  font-size: 13px;
+}
+.rename-chat > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.rename-chat button {
+  font-size: 12px;
+  padding: 8px;
+}
+.chat-list {
+  overflow: visible;
+  max-height: none;
+}

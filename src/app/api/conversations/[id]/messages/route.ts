@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import { TITLE_MODEL, updateGeneratedTitle } from "@/lib/agent/title";
 import { z } from "zod";
 import { currentRcpToken, repository } from "@/lib/auth/session";
 import {
@@ -46,6 +48,12 @@ export async function POST(
       z.object({
         text: z.string().trim().min(1).max(4000),
         requestId: z.string().uuid(),
+        edit: z
+          .object({
+            messageId: z.string().uuid(),
+            previousRequestId: z.string().uuid(),
+          })
+          .optional(),
       }),
     );
     const token = await currentRcpToken();
@@ -62,6 +70,7 @@ export async function POST(
       id,
       body.text,
       body.requestId,
+      body.edit,
     );
     if (turn.kind === "not-found")
       throw new HttpError(404, "Conversation not found.");
@@ -98,6 +107,25 @@ export async function POST(
         422,
         "This conversation has reached its research context limit. Start a new chat to continue.",
       );
+    if (saved.title_source === "fallback")
+      after(async () => {
+        try {
+          await updateGeneratedTitle(
+            activeRepo,
+            session.user_id,
+            id,
+            chatModel(TITLE_MODEL),
+            true,
+          );
+        } catch {
+          console.error(
+            JSON.stringify({
+              event: "automatic_title_failed",
+              conversationId: id,
+            }),
+          );
+        }
+      });
     client = await connectPollingMcp(token, signal);
     const tools = await pollingTools(client, signal);
     const activeClient = client;

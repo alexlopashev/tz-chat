@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, getToolName } from "ai";
 import type { Conversation, SavedMessage } from "@/lib/repository";
 import { toChatMessages, type ChatMessage } from "@/lib/chat-types";
 import { SiteHeader } from "./site-header";
 import { RichMessage } from "./rich-message";
+import { ChatHistory } from "./chat-history";
 import { EvidenceCard } from "./evidence-card";
 
 type Selected = Conversation & { messages: SavedMessage[] };
@@ -27,6 +28,17 @@ export function ResearchDesk({
   const [accountBusy, setAccountBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const conversationId = useRef(selected?.id);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const setupRequest = useRef<AbortController | null>(null);
+  const [sending, setSending] = useState(false);
+  const [editing, setEditing] = useState<{
+    messageId: string;
+    previousRequestId: string;
+    draft: string;
+  } | null>(null);
+  const editAttempt = useRef<
+    { messageId: string; previousRequestId: string } | undefined
+  >(undefined);
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
@@ -40,6 +52,7 @@ export function ResearchDesk({
                 .map((part) => part.text)
                 .join("\n"),
               requestId: message?.metadata?.requestId ?? message?.id,
+              edit: body?.edit,
             },
           };
         },
@@ -71,18 +84,34 @@ export function ResearchDesk({
       throttle: 50,
       onFinish: syncLocation,
     });
-  const busy = accountBusy || status === "submitted" || status === "streaming";
+  const responding =
+    sending || status === "submitted" || status === "streaming";
+  const busy = accountBusy || responding;
+  const lastUser = messages.findLast((message) => message.role === "user");
   const last = messages.at(-1);
   const retryable =
     !busy &&
     (Boolean(error) ||
       last?.metadata?.status === "failed" ||
       last?.metadata?.status === "interrupted");
-  async function request(path: string) {
+  const selectedId = selected?.id;
+  const titlePending =
+    selected?.title_source === "fallback" && messages.length > 0;
+  useEffect(() => {
+    if (!selectedId || !titlePending || responding) return;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      router.refresh();
+      if (++attempts >= 8) clearInterval(timer);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [selectedId, titlePending, responding, router]);
+  async function request(path: string, signal?: AbortSignal) {
     const response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}",
+      signal,
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error ?? "The request failed.");
@@ -101,25 +130,68 @@ export function ResearchDesk({
       setAccountBusy(false);
     }
   }
+  function stopResponse() {
+    setupRequest.current?.abort();
+    void stop();
+  }
+  function editLastQuestion() {
+    if (!lastUser || busy) return;
+    setEditing({
+      messageId: lastUser.id,
+      previousRequestId: lastUser.metadata?.requestId ?? lastUser.id,
+      draft: question,
+    });
+    setQuestion(
+      lastUser.parts
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("\n"),
+    );
+    inputRef.current?.focus();
+  }
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !question.trim()) return;
-    setAccountBusy(true);
+    const controller = new AbortController();
+    setupRequest.current = controller;
+    setSending(true);
     setActionError("");
     clearError();
+    const text = question.trim();
+    const edit = editing
+      ? {
+          messageId: editing.messageId,
+          previousRequestId: editing.previousRequestId,
+        }
+      : undefined;
+    editAttempt.current = edit;
     try {
       if (!conversationId.current)
-        conversationId.current = (await request("/api/conversations")).id;
-      const text = question.trim();
+        conversationId.current = (
+          await request("/api/conversations", controller.signal)
+        ).id;
+      if (controller.signal.aborted) return;
       setQuestion("");
+      setEditing(null);
       await sendMessage(
-        { text },
-        { body: { conversationId: conversationId.current } },
+        edit
+          ? {
+              text,
+              messageId: edit.messageId,
+              metadata: { status: "complete", requestId: crypto.randomUUID() },
+            }
+          : { text },
+        { body: { conversationId: conversationId.current, edit } },
       );
     } catch {
-      setActionError("Couldn't send the question. Please try again.");
+      if (!controller.signal.aborted) {
+        setQuestion(text);
+        setEditing(editing);
+        setActionError("Couldn't send the question. Please try again.");
+      }
     } finally {
-      setAccountBusy(false);
+      setupRequest.current = null;
+      setSending(false);
     }
   }
   return (
@@ -155,26 +227,11 @@ export function ResearchDesk({
           <Link href="/" className="new-chat">
             ＋ New chat
           </Link>
-          <h2>Recent chats</h2>
-          {conversations.length ? (
-            <ul className="chat-list">
-              {conversations.map((chat) => (
-                <li key={chat.id}>
-                  <Link
-                    href={"/?chat=" + chat.id}
-                    aria-current={selected?.id === chat.id ? "page" : undefined}
-                  >
-                    {chat.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>
-              Your conversations will appear here. They stay with your RCP
-              account.
-            </p>
-          )}
+          <ChatHistory
+            conversations={conversations}
+            selectedId={selected?.id}
+            disabled={busy}
+          />
           <div className="sidebar-note">
             Keep the sources
             <br />
@@ -206,6 +263,16 @@ export function ResearchDesk({
                     ? "Your question"
                     : "Research assistant"}
                 </span>
+                {message.id === lastUser?.id && (
+                  <button
+                    type="button"
+                    className="edit-message-button"
+                    onClick={editLastQuestion}
+                    disabled={busy || Boolean(editing)}
+                  >
+                    Edit question
+                  </button>
+                )}
                 {message.parts.map((part, index) => {
                   if (part.type === "text")
                     return <RichMessage key={index} text={part.text} />;
@@ -260,10 +327,45 @@ export function ResearchDesk({
             </div>
           )}
           <form className="composer" onSubmit={save}>
-            <label htmlFor="question">Your question</label>
+            <div className="composer-heading">
+              <label htmlFor="question">
+                {editing ? "Edit your last question" : "Your question"}
+              </label>
+              {editing && (
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    setQuestion(editing.draft);
+                    setEditing(null);
+                    inputRef.current?.focus();
+                  }}
+                >
+                  Cancel edit
+                </button>
+              )}
+            </div>
+            {editing && (
+              <p className="edit-help">
+                Sending this edit replaces the previous answer.
+              </p>
+            )}
             <textarea
               id="question"
+              ref={inputRef}
               value={question}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing &&
+                  event.nativeEvent.keyCode !== 229
+                ) {
+                  event.preventDefault();
+                  if (!busy && question.trim())
+                    event.currentTarget.form?.requestSubmit();
+                }
+              }}
               onChange={(e) => setQuestion(e.target.value)}
               maxLength={4000}
               disabled={busy}
@@ -271,27 +373,31 @@ export function ResearchDesk({
               required
               aria-describedby="save-help"
             />
-            <div>
-              <p id="save-help">
-                Your questions and sourced answers are saved to your account.
-              </p>
-              <button type="submit" disabled={busy || !question.trim()}>
-                {busy ? "Researching…" : "Send question ↑"}
-              </button>
+            <div className="composer-footer">
+              <p id="save-help">Enter to send · Shift+Enter for a new line</p>
+              {responding ? (
+                <button
+                  type="button"
+                  className="stop-button"
+                  onClick={stopResponse}
+                >
+                  ■ Stop
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={accountBusy || !question.trim()}
+                >
+                  {editing ? "Save & send ↑" : "Send question ↑"}
+                </button>
+              )}
             </div>
           </form>
-          {busy && (
+          {responding && (
             <div className="stream-status" role="status">
               {status === "streaming"
                 ? "Writing your answer…"
                 : "Researching your question…"}{" "}
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => stop()}
-              >
-                Stop
-              </button>
             </div>
           )}
           {(actionError || error) && (
@@ -306,21 +412,25 @@ export function ResearchDesk({
               onClick={() => {
                 clearError();
                 regenerate({
-                  body: { conversationId: conversationId.current },
+                  body: {
+                    conversationId: conversationId.current,
+                    edit: editAttempt.current,
+                  },
                 });
               }}
             >
               Retry answer
             </button>
           )}
-          {!busy && last?.metadata?.status === "pending" && (
-            <button
-              className="secondary-button"
-              onClick={() => window.location.reload()}
-            >
-              Reload response
-            </button>
-          )}
+          {!busy &&
+            (last?.metadata?.status === "pending" || Boolean(error)) && (
+              <button
+                className="secondary-button"
+                onClick={() => window.location.reload()}
+              >
+                Reload response
+              </button>
+            )}
         </section>
       </main>
       <footer>

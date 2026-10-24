@@ -32,7 +32,12 @@ const a = randomUUID(),
 const key = randomBytes(32);
 const expires = () => new Date(Date.now() + 86400_000);
 beforeAll(async () => {
-  for (const file of ["0001_chat", "0002_identity", "0003_generation"])
+  for (const file of [
+    "0001_chat",
+    "0002_identity",
+    "0003_generation",
+    "0004_chat_preferences",
+  ])
     await db.exec(
       await readFile(
         new URL(`../db/migrations/${file}.sql`, import.meta.url),
@@ -311,5 +316,265 @@ describe("Database-backed generation lifecycle", () => {
     expect(
       (await repo.reserveTurn(owner, chat, "Recover me", request)).kind,
     ).toBe("reserved");
+  });
+});
+
+describe("Editing the last question", () => {
+  it("atomically replaces the last turn, preserves prior context and rejects late completion", async () => {
+    const owner = "edit-owner",
+      chat = await repo.createConversation(owner);
+    const firstRequest = randomUUID();
+    const first = await repo.reserveTurn(
+      owner,
+      chat,
+      "Earlier question",
+      firstRequest,
+    );
+    if (first.kind !== "reserved") throw new Error("Not reserved");
+    await repo.finishTurn(
+      owner,
+      chat,
+      first.assistantId,
+      first.generationId,
+      [{ type: "text", text: "Earlier answer" }],
+      "complete",
+    );
+    const oldRequest = randomUUID();
+    const old = await repo.reserveTurn(
+      owner,
+      chat,
+      "Original question",
+      oldRequest,
+    );
+    if (old.kind !== "reserved") throw new Error("Not reserved");
+    await repo.finishTurn(
+      owner,
+      chat,
+      old.assistantId,
+      old.generationId,
+      [{ type: "text", text: "Original answer" }],
+      "complete",
+    );
+    const revision = randomUUID(),
+      edit = { messageId: oldRequest, previousRequestId: oldRequest };
+    const revised = await repo.reserveTurn(
+      owner,
+      chat,
+      "Revised question",
+      revision,
+      edit,
+    );
+    expect(revised.kind).toBe("reserved");
+    if (revised.kind !== "reserved") throw new Error("Not reserved");
+    const saved = (await repo.conversation(owner, chat))!.messages;
+    expect(saved).toHaveLength(4);
+    expect(saved[1].parts_json).toEqual([
+      { type: "text", text: "Earlier answer" },
+    ]);
+    expect(saved[2]).toMatchObject({
+      id: oldRequest,
+      request_id: revision,
+      parts_json: [{ type: "text", text: "Revised question" }],
+    });
+    expect(saved[3].parts_json).toEqual([]);
+    expect(
+      await repo.finishTurn(
+        owner,
+        chat,
+        old.assistantId,
+        old.generationId,
+        [],
+        "complete",
+      ),
+    ).toBe(false);
+    expect(
+      (await repo.reserveTurn(owner, chat, "Revised question", revision, edit))
+        .kind,
+    ).toBe("busy");
+    await repo.finishTurn(
+      owner,
+      chat,
+      revised.assistantId,
+      revised.generationId,
+      [{ type: "text", text: "Revised answer" }],
+      "complete",
+    );
+    expect(
+      (await repo.reserveTurn(owner, chat, "Revised question", revision, edit))
+        .kind,
+    ).toBe("complete");
+    expect(
+      (await repo.reserveTurn(owner, chat, "Stale edit", randomUUID(), edit))
+        .kind,
+    ).toBe("busy");
+    expect((await repo.conversation(owner, chat))!.messages).toHaveLength(4);
+  });
+  it("rejects other owners, older questions and active turns, and updates the first-question title", async () => {
+    const owner = "guarded-edit",
+      chat = await repo.createConversation(owner),
+      request = randomUUID();
+    const turn = await repo.reserveTurn(owner, chat, "Original title", request);
+    if (turn.kind !== "reserved") throw new Error("Not reserved");
+    const edit = { messageId: request, previousRequestId: request };
+    expect(
+      (await repo.reserveTurn(owner, chat, "Active edit", randomUUID(), edit))
+        .kind,
+    ).toBe("busy");
+    await repo.finishTurn(
+      owner,
+      chat,
+      turn.assistantId,
+      turn.generationId,
+      [],
+      "failed",
+    );
+    expect(
+      (
+        await repo.reserveTurn(
+          "other-owner",
+          chat,
+          "Foreign edit",
+          randomUUID(),
+          edit,
+        )
+      ).kind,
+    ).toBe("not-found");
+    const revision = randomUUID();
+    const updated = await repo.reserveTurn(
+      owner,
+      chat,
+      "Updated title",
+      revision,
+      edit,
+    );
+    if (updated.kind !== "reserved") throw new Error("Not reserved");
+    expect((await repo.conversation(owner, chat))!.title).toBe("Updated title");
+    await repo.finishTurn(
+      owner,
+      chat,
+      updated.assistantId,
+      updated.generationId,
+      [],
+      "complete",
+    );
+    const next = await repo.reserveTurn(
+      owner,
+      chat,
+      "Newer question",
+      randomUUID(),
+    );
+    if (next.kind !== "reserved") throw new Error("Not reserved");
+    await repo.finishTurn(
+      owner,
+      chat,
+      next.assistantId,
+      next.generationId,
+      [],
+      "complete",
+    );
+    expect(
+      (
+        await repo.reserveTurn(owner, chat, "Edit older", randomUUID(), {
+          messageId: request,
+          previousRequestId: revision,
+        })
+      ).kind,
+    ).toBe("busy");
+    expect(
+      (await repo.conversation(owner, chat))!.messages[0].parts_json,
+    ).toEqual([{ type: "text", text: "Updated title" }]);
+  });
+});
+
+describe("Chat organization", () => {
+  it("sorts by message activity while pinning and renaming do not bump recency", async () => {
+    const owner = "organization-owner",
+      older = await repo.createConversation(owner),
+      newer = await repo.createConversation(owner);
+    await repo.saveQuestion(owner, older, "Older chat", randomUUID());
+    await repo.saveQuestion(owner, newer, "Newer chat", randomUUID());
+    await db.query(
+      "UPDATE messages SET created_at=now()-interval '2 days' WHERE conversation_id=$1",
+      [older],
+    );
+    await db.query(
+      "UPDATE messages SET created_at=now()-interval '1 day' WHERE conversation_id=$1",
+      [newer],
+    );
+    await repo.pinConversation(owner, older, true);
+    await repo.renameConversation(owner, older, "Favourite research");
+    expect((await repo.conversations(owner)).map((chat) => chat.id)).toEqual([
+      newer,
+      older,
+    ]);
+    expect((await repo.conversation(owner, older))!.pinned_at).not.toBeNull();
+    expect(await repo.pinConversation("other", older, false)).toBe(false);
+    expect(await repo.renameConversation("other", older, "Unauthorized")).toBe(
+      false,
+    );
+    await repo.saveQuestion(owner, older, "New activity", randomUUID());
+    expect((await repo.conversations(owner))[0].id).toBe(older);
+    await repo.pinConversation(owner, older, false);
+    expect((await repo.conversation(owner, older))!.pinned_at).toBeNull();
+  });
+  it("keeps manual titles through edits and rejects stale generated title writes", async () => {
+    const owner = "title-owner",
+      id = await repo.createConversation(owner),
+      request = randomUUID();
+    const turn = await repo.reserveTurn(owner, id, "First question", request);
+    if (turn.kind !== "reserved") throw new Error("Not reserved");
+    await repo.finishTurn(
+      owner,
+      id,
+      turn.assistantId,
+      turn.generationId,
+      [],
+      "complete",
+    );
+    const before = (await repo.conversation(owner, id))!;
+    await repo.renameConversation(owner, id, "My research");
+    expect(
+      await repo.setGeneratedTitle(
+        owner,
+        id,
+        "Stale generated name",
+        before.title_revision,
+      ),
+    ).toBe(false);
+    const manual = (await repo.conversation(owner, id))!;
+    expect(
+      await repo.setGeneratedTitle(
+        owner,
+        id,
+        "Automatic overwrite",
+        manual.title_revision,
+        true,
+      ),
+    ).toBe(false);
+    await repo.reserveTurn(owner, id, "Revised first question", randomUUID(), {
+      messageId: request,
+      previousRequestId: request,
+    });
+    expect((await repo.conversation(owner, id))!.title).toBe("My research");
+    const revised = (await repo.conversation(owner, id))!;
+    expect(
+      await repo.setGeneratedTitle(
+        "other",
+        id,
+        "Wrong owner",
+        revised.title_revision,
+      ),
+    ).toBe(false);
+    expect(
+      await repo.setGeneratedTitle(
+        owner,
+        id,
+        "Explicit regeneration",
+        revised.title_revision,
+      ),
+    ).toBe(true);
+    expect((await repo.conversation(owner, id))!.title_source).toBe(
+      "generated",
+    );
   });
 });

@@ -167,3 +167,11 @@ Chromium verified a real MCP-backed Maine Senate answer, complete persisted tool
 Moved source details into default-collapsed disclosures while keeping useful tables and historical-average charts visible. Added chronological, validated history series with missing-value gaps, actual date spacing, full-scale percentage axis, legends and exact-observation tables. Model guidance now requests appropriate history retrieval for chart/trend questions and supports Markdown comparisons without chart code or invented data.
 
 All 43 tests, formatting, zero-warning lint, TypeScript and production build passed. Chromium verified desktop/mobile rendering with real MCP evidence in explicitly labeled saved-message fixtures, default collapse and toggle behavior, exact table values and no page overflow. Temporary fixture conversations were removed; local production server restarted.
+
+## Composer, editable questions and chat organization — October 24, 2026
+
+Improved the composer focus spacing, Enter/Shift+Enter behavior and IME handling; Send becomes Stop while a response is pending or streaming. The last question can be edited and resent, replacing its answer atomically while preserving prior context and preventing stale/concurrent edits. Cancel restores the unsent draft.
+
+Added a persistent upper Pinned section, message-recency sorting, per-chat rename and Regenerate title actions. Automatic and regenerated titles use Gateway model `openai/gpt-6-luna`; model discovery and real title generation were verified. Bounded question-only context and revision-checked writes protect privacy and manual naming. Migration `0004_chat_preferences` was tested and applied on preview before production. Pin/name changes do not change message recency; pinned chats are retained independently of the recent-chat limit.
+
+All 49 tests and the production verification gates passed. Browser checks covered live send/edit/regeneration, Stop and durable interruption, keyboard handling, focus layout, title generation/display, pin/reload/unpin, manual rename, regeneration, ordering and authorization boundaries, desktop/mobile overflow and JavaScript errors. Temporary test conversations were removed. Hosted UX remains unverified from this workspace.
