@@ -18,8 +18,10 @@ const gatewaySchema = z
     path: ["AI_GATEWAY_API_KEY"],
   });
 const mcpSchema = z.object({
-  RCP_MCP_URL: z.literal("https://rcp.tazalabs.ai/mcp"),
-  RCP_MCP_TOKEN: nonEmpty,
+  url: z.literal("https://rcp.tazalabs.ai/mcp"),
+  token: nonEmpty
+    .transform((value) => value.replace(/^Bearer(?:\s+|$)/i, "").trim())
+    .pipe(z.string().min(1).regex(/^\S+$/)),
 });
 
 function parse<T>(
@@ -43,8 +45,7 @@ export function gatewayConfig(
 ) {
   return parse(gatewaySchema, env);
 }
-export function mcpConfig(
-  env: Record<string, string | undefined> = process.env,
-) {
-  return parse(mcpSchema, env);
+/** User credentials are explicit input, never process-environment configuration. */
+export function mcpConfig(input: { url?: string; token?: string }) {
+  return parse(mcpSchema, input);
 }

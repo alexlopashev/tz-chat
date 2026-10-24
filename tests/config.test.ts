@@ -31,23 +31,45 @@ describe("AI Gateway configuration", () => {
 });
 
 describe("MCP credential boundary", () => {
+  it.each(["test-only", "Bearer test-only", "  bearer   test-only  "])(
+    "normalizes raw and prefixed credentials (case %#)",
+    (token) => {
+      expect(
+        mcpConfig({
+          url: "https://rcp.tazalabs.ai/mcp",
+          token: token,
+        }).token,
+      ).toBe("test-only");
+    },
+  );
+  it.each(["Bearer", "Bearer   ", "Bearer test\r\nInjected: value"])(
+    "rejects empty or malformed authorization values (case %#)",
+    (token) => {
+      expect(() =>
+        mcpConfig({
+          url: "https://rcp.tazalabs.ai/mcp",
+          token: token,
+        }),
+      ).toThrow("token");
+    },
+  );
   it("requires a token and rejects alternate destinations", () => {
-    expect(() =>
-      mcpConfig({ RCP_MCP_URL: "https://rcp.tazalabs.ai/mcp" }),
-    ).toThrow(/RCP_MCP_TOKEN/);
+    expect(() => mcpConfig({ url: "https://rcp.tazalabs.ai/mcp" })).toThrow(
+      /token/,
+    );
     expect(() =>
       mcpConfig({
-        RCP_MCP_URL: "https://untrusted.example/mcp",
-        RCP_MCP_TOKEN: "test-only",
+        url: "https://untrusted.example/mcp",
+        token: "test-only",
       }),
-    ).toThrow(/RCP_MCP_URL/);
+    ).toThrow(/url/);
   });
   it("never repeats a supplied URL credential in validation errors", () => {
     const secret = "test-sensitive-value";
     try {
       mcpConfig({
-        RCP_MCP_URL: `https://rcp.tazalabs.ai/mcp?token=${secret}`,
-        RCP_MCP_TOKEN: secret,
+        url: `https://rcp.tazalabs.ai/mcp?token=${secret}`,
+        token: secret,
       });
       expect.unreachable();
     } catch (error) {
@@ -57,9 +79,9 @@ describe("MCP credential boundary", () => {
   it("accepts separate server and credential fields", () => {
     expect(
       mcpConfig({
-        RCP_MCP_URL: "https://rcp.tazalabs.ai/mcp",
-        RCP_MCP_TOKEN: "test-only",
-      }).RCP_MCP_URL,
+        url: "https://rcp.tazalabs.ai/mcp",
+        token: "test-only",
+      }).url,
     ).toBe("https://rcp.tazalabs.ai/mcp");
   });
 });

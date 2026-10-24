@@ -238,3 +238,327 @@ footer {
     flex-direction: column;
   }
 }
+
+/* Account connection and persistent research workspace. */
+input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+button {
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  min-height: 44px;
+}
+.sign-in-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  background: var(--wash);
+  padding: 64px 7% 72px;
+  gap: 8%;
+  align-items: start;
+}
+.sign-in-story {
+  padding-top: 70px;
+}
+.sign-in-story h1 {
+  font-size: clamp(44px, 5vw, 68px);
+  line-height: 1.06;
+  margin: 24px 0;
+}
+.sign-in-story .intro {
+  max-width: 390px;
+  font-size: 18px;
+}
+.story-rule {
+  width: 46px;
+  height: 3px;
+  background: var(--accent);
+  margin: 42px 0 24px;
+}
+.story-caption {
+  font:
+    22px Georgia,
+    serif;
+}
+.story-detail {
+  color: var(--muted);
+  line-height: 1.8;
+  max-width: 340px;
+  font-size: 14px;
+}
+.sign-in-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 28px #25252505;
+  padding: 36px;
+}
+.sign-in-card h2 {
+  font-size: 29px;
+  line-height: 1.2;
+  margin: 16px 0 12px;
+  letter-spacing: -0.5px;
+}
+.card-intro {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.sign-in-steps {
+  list-style: none;
+  padding: 22px 0 6px;
+  margin: 0;
+}
+.sign-in-steps li {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.step-number {
+  color: var(--accent);
+  font:
+    18px Georgia,
+    serif;
+  flex-shrink: 0;
+}
+.sign-in-steps strong {
+  font-size: 13px;
+}
+.sign-in-steps p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.sign-in-form {
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.sign-in-form label {
+  font-size: 13px;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 10px;
+}
+.token-input {
+  display: flex;
+  border: 1px solid #bcb7af;
+  border-radius: 3px;
+  background: #fff;
+}
+.token-input input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  padding: 14px 12px;
+  font: inherit;
+  font-size: 14px;
+  border-radius: inherit;
+}
+.text-button {
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  padding: 8px 12px;
+}
+.field-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.form-error {
+  color: #941527;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.form-error:empty {
+  display: none;
+}
+.primary-button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 22px;
+  font-weight: bold;
+  padding: 16px;
+}
+.privacy-note {
+  margin: 16px 0 0;
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.account-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.account-label {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.account-id {
+  font-family: monospace;
+  color: var(--muted);
+  border-left: 1px solid var(--line);
+  padding-left: 7px;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #557550;
+}
+.secondary-button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.new-chat {
+  display: block;
+  border: 1px solid var(--line);
+  text-decoration: none;
+  padding: 13px;
+  background: var(--paper);
+  font-size: 13px;
+  margin-bottom: 30px;
+}
+.chat-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.chat-list a {
+  display: block;
+  padding: 12px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-decoration: none;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  border-left: 2px solid transparent;
+}
+.chat-list a:hover {
+  background: #eeebe5;
+}
+.chat-list a[aria-current] {
+  background: var(--paper);
+  border-color: var(--accent);
+}
+.resource-nav span {
+  color: var(--muted);
+  margin-left: auto;
+}
+.conversation {
+  align-self: start;
+  margin-top: 0;
+}
+.conversation h1 {
+  overflow-wrap: anywhere;
+}
+.empty-research {
+  text-align: center;
+  border-block: 1px solid var(--line);
+  padding: 28px 16px;
+  margin-top: 28px;
+}
+.empty-research > span {
+  font:
+    32px Georgia,
+    serif;
+  color: var(--accent);
+}
+.empty-research > p:not(.field-help) {
+  font:
+    20px Georgia,
+    serif;
+  margin: 12px 0;
+}
+.saved-message {
+  border-bottom: 1px solid var(--line);
+  padding: 20px 0;
+}
+.error-page {
+  display: block;
+  padding: 10%;
+}
+@media (max-width: 1000px) {
+  .sign-in-layout {
+    padding: 40px 5%;
+    gap: 5%;
+  }
+  .sign-in-card {
+    padding: 26px;
+  }
+}
+@media (max-width: 760px) {
+  .sign-in-layout {
+    display: block;
+    padding: 32px 6%;
+  }
+  .sign-in-story {
+    padding: 0 0 26px;
+  }
+  .sign-in-story h1 {
+    font-size: 42px;
+  }
+  .sign-in-story h1 br {
+    display: none;
+  }
+  .sign-in-story .intro {
+    font-size: 15px;
+    max-width: none;
+  }
+  .story-rule,
+  .story-caption,
+  .story-detail {
+    display: none;
+  }
+  .sign-in-card {
+    padding: 24px 20px;
+  }
+  .sign-in-card h2 {
+    font-size: 26px;
+  }
+  .account-controls {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .desk-layout .sidebar {
+    display: block;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 20px 6%;
+  }
+  .sidebar-note {
+    display: none;
+  }
+  .new-chat {
+    display: inline-block;
+    margin-bottom: 0;
+  }
+  .chat-list {
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .resource-nav {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+}

@@ -31,3 +31,7 @@ The Neon project was created through Neon directly. Vercel environment configura
 Use a direct TLS connection as `DATABASE_MIGRATION_URL` only in the environment where explicit migrations run. Keep that credential out of Git and avoid putting an owner credential in client-side variables. Runtime access should use a role with the permissions needed by the implemented queries. App queries and authentication are not implemented yet.
 
 After configuring variables, redeploy Vercel and verify database access from the intended runtime. The current `/api/health` checks only the web shell. Migrations remain an explicit operation, never a build step.
+
+## Session and identity migration
+
+On October 24, 2026, `0002_identity` was tested on `preview` and applied through the repository runner to the configured `production` branch. `ep-solitary-pine-b7cz50n4` was verified against Neon endpoint metadata as production. The migration adds `app_users`, `rcp_credentials`, and `user_sessions`; conversation owner IDs are verified RCP account IDs. Existing chat/message/dataset schemas remain intact. See `NEXT_SESSION_HANDOFF.md` for local configuration and verification.

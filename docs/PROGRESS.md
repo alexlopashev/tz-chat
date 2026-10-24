@@ -89,3 +89,51 @@ Actual factory calls, with the cloud proxy enabled, found MCP HTTP 401 and Gatew
 The scope of this session is the first handoff priority: verify the environment mismatch and identify actionable integration blockers. No secret values were requested or written to configuration files. Remaining overall trial time is still unknown.
 
 Validation: clean pinned `npm ci`, then `mise run ci` passed formatting, zero-warning lint, TypeScript, all 9 tests, and production build. Production shell restarted with `NODE_USE_ENV_PROXY=1 mise run start` on port 3000; `/` and `/api/health` returned HTTP 200. Health still explicitly reports `liveChat: false`. No browser or deployed integration checks were performed. Approximately 6 minutes spent on this investigation and verification; total remaining trial budget remains unknown.
+
+## Access verification — October 24, 2026
+
+Fast-forwarded the clean checkout to `61d9611` and resumed the first priority from `NEXT_SESSION_HANDOFF.md`. Current environment observations establish all seven runtime variables ready and network enforcement active. The previously blocked Neon API host is allowed; an HTTP-driver read-only query returned `tz_chat` and confirmed the conversations, messages and datasets tables. No database writes were made.
+
+MCP initialization through the existing factory still returns HTTP 401. Minimal Gateway generation through the existing factory still returns HTTP 403 with a billing/credit indication. These service-level blockers remain despite ready variable injection. No MCP contracts, polling data, successful generation, authentication or hosted product behavior were verified. See the latest handoff section for the next actions.
+
+Verification: clean `npm ci` and `mise run ci` passed (formatting, lint, TypeScript, 9 tests, production build). Restarted the production shell with `NODE_USE_ENV_PROXY=1 mise run start` on port 3000; `/` and `/api/health` returned HTTP 200, with `liveChat: false`. No browser or hosted integration was verified.
+
+## MCP authentication and identity verified — October 24, 2026
+
+This supersedes the MCP 401 blocker below. The user confirmed Authorization Bearer authentication. The factory now sends the token only in that header; configuration accepts raw tokens or a case-insensitive `Bearer ` prefix, trims surrounding whitespace, and rejects empty/malformed values. Live initialization, tool discovery and `whoami` succeeded through the updated factory.
+
+Discovered tools: `whoami`, `search_races`, `get_race`, `get_race_polls`, `get_race_average_history`, `compare_races`, `list_pollsters`, `get_race_ratings`, `get_rating_changes`, `send_feedback`. Do not expose `send_feedback` automatically: it submits external feedback. Every tool requires a purpose string of at least ten characters; optional purpose_kind accepts research, journalism, campaign, academic, personal or other.
+
+`whoami` returned a successful text content block containing JSON with `account_id`, `token_id`, `token_prefix`, `session_id`, `server`, `client`, `purpose`, `purpose_kind`, and `call_id`, followed by a connection summary. No display name, email, avatar or account permissions were returned. Use the server-validated account ID as the candidate ownership identity; cross-token stability remains untested. Expose only allowlisted UI fields (for example a shortened account ID); keep token metadata and upstream session IDs out of UI/model history. Mint the application's own session cookie. Do not treat client/server names as user names or parse numeric call IDs as exact JavaScript numbers without verifying their representation.
+
+The SDK encountered HTTP 400/405 during negotiation/optional transport requests, but initialization, tools/list and tools/call completed successfully. Polling retrieval itself remains untested. Gateway billing/credit remains a separate blocker.
+
+## RCP sign-in and durable history — October 24, 2026
+
+This supersedes older statements that end-user identity and private history endpoints are absent.
+
+- `/` redirects signed-out visitors to `/sign-in`. The responsive sign-in page explains how to sign in at RealClearPolitics, open `https://rcp.tazalabs.ai/`, and copy the MCP token. The public connection page was inspected and requires RealClearPolitics sign-in; the authenticated token-management UI was not inspected.
+- POST `/api/auth/sign-in` accepts raw or Bearer-prefixed tokens and verifies `whoami`. Only its validated `account_id` becomes the user ID. Browser/model owner IDs and decoded token claims are never trusted.
+- Random 256-bit session IDs live only in HttpOnly SameSite cookies; their SHA-256 hashes, expiry and revocation live in Postgres. HTTPS uses Secure `__Host-` cookies; HTTP is allowed only for localhost development. Sessions last 30 days without silent refresh. Logout revokes the current session; a fresh sign-in replaces the current browser session.
+- Tokens are AES-256-GCM encrypted, with account ID as authenticated context, in `rcp_credentials`. Sessions link to those credentials and `app_users`. Chats remain owned by the stable RCP account ID across sessions and different tokens. No token/profile metadata is sent to the UI or model.
+- `/api/conversations`, `/api/conversations/[id]`, and message saves require a valid session and scope all history queries by account. Writes enforce the configured Origin. Question saves serialize with a database row lock and use request IDs to prevent duplicate messages on retries.
+- The workspace supports saving questions, listing recent chats, reopening messages and signing out. It explicitly states that live answers are not connected; no assistant output is fabricated. Lists show the 100 most recent chats; older direct links remain available.
+- `0002_identity` adds users, credentials and sessions. It passed embedded Postgres checks and was applied to the existing preview branch, then to the configured database via the migration runner. Endpoint mapping is now verified: `ep-solitary-pine-b7cz50n4` belongs to **production**, `br-red-cherry-b7aqykv9`. Both baseline and new migration checksums were verified on the configured database. The runner now discovers versioned SQL files.
+- A local-only encryption key and `APP_ORIGIN=http://localhost:3000` were created in gitignored mode-0600 `.env.local`, without printing them or replacing inherited credentials. Preserve this key. Hosted sign-in requires its own secure `RCP_TOKEN_ENCRYPTION_KEY`, exact HTTPS `APP_ORIGIN`, and migrated database. No Vercel configuration or deployment was changed.
+- Real Chromium checks passed: unauthenticated redirect; invalid token error with no session; real RCP sign-in; persistent HttpOnly cookie and no local storage; save and reload through Neon; same-origin enforcement; anonymous history denial; logout and old-cookie denial; fresh login reopening the same history; desktop and 390px layouts; no JavaScript errors. Browser verification used one real RCP account/token. Separate embedded tests verify two-account isolation and different-token/same-account continuity; do not describe these as two real RCP account tests.
+
+Next: resolve Gateway billing/credit, then wire real polling retrieval and the sourced generation lifecycle. Account-wide session management, automated expired credential/session cleanup, upstream revocation propagation, and hosted verification remain future work. RCP token revocation does not automatically end an existing application session; sessions currently end on application expiry/logout. No account email/name is available from `whoami`.
+
+Final verification: `mise run ci` passed formatting, zero-warning ESLint, TypeScript, all 26 tests and production build. Chromium end-to-end checks passed against real RCP and Neon. The generated browser-test conversation was removed afterward. Session/UI implementation took approximately 15 minutes; earlier trial budget remains unknown.
+
+## Environment-key local verification — October 24, 2026
+
+Re-ran Chromium verification using the existing environment-loaded encryption key; no key was regenerated or exposed. A read of the newly created session/credential record confirmed the stored session identifier is hashed, the token is ciphertext, and AES-GCM decryption with the environment key and owning account ID reproduces the presented token. Only boolean assertions/results were logged.
+
+Real sign-in, invalid-token rejection, HttpOnly persistence with no local storage, save/reload, logout and old-cookie rejection, fresh-sign-in history restoration, cross-origin write rejection, anonymous history denial and 390px layout all passed without browser JavaScript errors. The generated test conversation was removed. `mise run ci` passed all 26 tests, formatting, lint, type checks and production build with no warnings/errors. Local configuration still loads from the existing gitignored `.env.local`; hosted environment provisioning was not changed or verified.
+
+## Removed shared MCP token fallback — October 24, 2026
+
+The application no longer reads `RCP_MCP_TOKEN`. `connectPollingMcp` requires an explicit token argument and fails before opening a transport when it is missing or invalid. MCP validation takes explicit `url`/`token` input rather than defaulting to process environment. Sign-in supplies the submitted token; subsequent authenticated MCP work should use `currentRcpToken()` from the validated session. `.env.example` no longer lists a shared token.
+
+All 29 tests and the production build passed. Regression tests verify missing tokens cannot fall back to an environment credential, caller tokens take precedence, and explicit tokens work with no environment credential. The production server was restarted with `RCP_MCP_TOKEN` unset; its absence was checked using names/presence only, including the local dotenv file. A separate browser test harness supplied the real token as form input. Sign-in, encrypted storage round-trip, cookie persistence, save/reload, logout, old-cookie rejection and fresh-login history restoration passed; the generated test conversation was removed. No shared credential is required by the running application. Cloud/Vercel secret settings were not edited.
