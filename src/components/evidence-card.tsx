@@ -94,11 +94,21 @@ export function EvidenceCard({ output }: { output: unknown }) {
         </div>
       )}
       <details className="evidence-card">
-        <summary>RCP evidence · {output.tool.replaceAll("_", " ")}</summary>
+        <summary>MCP call · {output.tool} · Completed</summary>
         <p className="field-help">
           Retrieved {output.retrievedAt.replace("T", " ").slice(0, 19)} UTC ·
-          Saved snapshot
+          Retrieved snapshot
         </p>
+        <strong>Arguments</strong>
+        <pre className="tool-json">
+          {JSON.stringify(output.requested, null, 2)}
+        </pre>
+        <details className="tool-response">
+          <summary>Returned data</summary>
+          <pre className="tool-json">
+            {JSON.stringify(output.data, null, 2)}
+          </pre>
+        </details>
         {!tables.length && !trend && (
           <p className="field-help">
             Evidence retrieved for this answer. Sources and dates are preserved

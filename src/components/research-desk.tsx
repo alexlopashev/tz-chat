@@ -3,13 +3,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, isToolUIPart, getToolName } from "ai";
+import { DefaultChatTransport, isToolUIPart } from "ai";
 import type { Conversation, SavedMessage } from "@/lib/repository";
 import { toChatMessages, type ChatMessage } from "@/lib/chat-types";
 import { draftKey, readDraft, writeDraft } from "@/lib/drafts";
 import { RichMessage } from "./rich-message";
 import { ChatHistory } from "./chat-history";
-import { EvidenceCard } from "./evidence-card";
+import { ToolCall } from "./tool-call";
+import { ResearchWaiting } from "./research-waiting";
 
 type Selected = Conversation & { messages: SavedMessage[] };
 export function ResearchDesk({
@@ -187,6 +188,24 @@ export function ResearchDesk({
   const busy = accountBusy || responding;
   const lastUser = messages.findLast((message) => message.role === "user");
   const last = messages.at(-1);
+  const activeParts =
+    status === "streaming" && last?.role === "assistant" ? last.parts : [];
+  const lastPart = activeParts.findLast(
+    (part) => isToolUIPart(part) || (part.type === "text" && part.text.trim()),
+  );
+  const waitingPhase = activeParts.some(
+    (part) =>
+      isToolUIPart(part) &&
+      !["output-available", "output-error", "output-denied"].includes(
+        part.state,
+      ),
+  )
+    ? "retrieving"
+    : lastPart?.type === "text"
+      ? "writing"
+      : activeParts.some(isToolUIPart)
+        ? "reviewing"
+        : "preparing";
   const retryable =
     !busy &&
     !notice?.unsaved &&
@@ -400,68 +419,72 @@ export function ResearchDesk({
               </p>
             )}
             <div className="message-list" aria-live="polite">
-              {messages.map((message) => (
-                <article className="message saved-message" key={message.id}>
-                  <span className="message-label">
-                    {message.role === "user"
-                      ? "Your question"
-                      : "Research assistant"}
-                  </span>
-                  {message.id === lastUser?.id && (
-                    <button
-                      type="button"
-                      className="edit-message-button"
-                      onClick={editLastQuestion}
-                      disabled={busy || Boolean(editing)}
-                    >
-                      Edit question
-                    </button>
-                  )}
-                  {message.parts.map((part, index) => {
-                    if (part.type === "text")
-                      return <RichMessage key={index} text={part.text} />;
-                    if (
-                      part.type === "data-error" &&
-                      typeof part.data === "string"
-                    )
-                      return (
-                        <p className="form-error" key={index}>
-                          {part.data}
-                        </p>
-                      );
-                    if (isToolUIPart(part)) {
-                      if (part.state === "output-available")
+              {messages
+                .filter(
+                  (message) =>
+                    message.role !== "assistant" ||
+                    !responding ||
+                    message.parts.some(
+                      (part) =>
+                        (part.type === "text" && part.text.trim().length > 0) ||
+                        isToolUIPart(part) ||
+                        part.type === "data-error",
+                    ),
+                )
+                .map((message) => (
+                  <article className="message saved-message" key={message.id}>
+                    <span className="message-label">
+                      {message.role === "user"
+                        ? "Your question"
+                        : "Research assistant"}
+                    </span>
+                    {message.id === lastUser?.id && (
+                      <button
+                        type="button"
+                        className="edit-message-button"
+                        onClick={editLastQuestion}
+                        disabled={busy || Boolean(editing)}
+                      >
+                        Edit question
+                      </button>
+                    )}
+                    {message.parts.map((part, index) => {
+                      if (part.type === "text")
+                        return <RichMessage key={index} text={part.text} />;
+                      if (
+                        part.type === "data-error" &&
+                        typeof part.data === "string"
+                      )
                         return (
-                          <EvidenceCard key={index} output={part.output} />
-                        );
-                      if (part.state === "output-error")
-                        return (
-                          <p className="field-help" key={index}>
-                            An RCP lookup failed. {part.errorText}
+                          <p className="form-error" key={index}>
+                            {part.data}
                           </p>
                         );
-                      return (
-                        <p className="tool-progress" key={index}>
-                          Looking up RCP data ·{" "}
-                          {getToolName(part).replaceAll("_", " ")}…
+                      if (isToolUIPart(part))
+                        return (
+                          <ToolCall
+                            key={index}
+                            part={part}
+                            active={responding && message.id === last?.id}
+                          />
+                        );
+                      return null;
+                    })}
+                    {message.metadata?.status &&
+                      message.metadata.status !== "complete" &&
+                      !(responding && message.metadata.status === "pending") &&
+                      message.role === "assistant" && (
+                        <p className="field-help">
+                          Response{" "}
+                          {message.metadata.status === "pending" && !busy
+                            ? "in progress; reload shortly"
+                            : message.metadata.status}
+                          .
                         </p>
-                      );
-                    }
-                    return null;
-                  })}
-                  {message.metadata?.status &&
-                    message.metadata.status !== "complete" &&
-                    message.role === "assistant" && (
-                      <p className="field-help">
-                        Response{" "}
-                        {message.metadata.status === "pending" && !busy
-                          ? "in progress; reload shortly"
-                          : message.metadata.status}
-                        .
-                      </p>
-                    )}
-                </article>
-              ))}
+                      )}
+                  </article>
+                ))}
+              {responding && <ResearchWaiting phase={waitingPhase} />}
             </div>
             {!messages.length && (
               <div className="empty-research">
@@ -557,13 +580,6 @@ export function ResearchDesk({
                 )}
               </div>
             </form>
-            {responding && (
-              <div className="stream-status" role="status">
-                {status === "streaming"
-                  ? "Writing your answer…"
-                  : "Researching your question…"}{" "}
-              </div>
-            )}
             {(actionError || error || notice) && (
               <p role="alert" className="form-error">
                 {actionError || notice?.message || error?.message}

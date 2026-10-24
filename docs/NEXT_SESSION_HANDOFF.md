@@ -2,6 +2,12 @@
 
 Updated October 24, 2026. Start with this file for current infrastructure state, then read `docs/PRODUCT_HANDOFF.md` for the product requirements and acceptance checks. This file supersedes older statements about unprovisioned databases, unsupported ESLint 10, and unverified deployment/model availability.
 
+## MCP drawers and waiting state — October 24, 2026
+
+Saved MCP parts were intact, but evidence drawers omitted arguments and returned data. Completed calls now show the exact tool name, arguments, nested returned-data disclosure, source links and retrieval time. Failed/in-progress/incomplete calls also have collapsed drawers; unsupported outputs no longer silently hide the call. Data is displayed as escaped text, using the existing sanitized evidence snapshots. Tables/charts remain outside the collapsed details.
+
+A compact rotating waiting indicator replaces empty assistant placeholders and the redundant composer status/pending line. Messages adapt to preparation, retrieval, evidence review and writing; animations respect reduced motion. Stop remains available. All 62 tests, production build and zero-warning lint passed. Chromium verified rotation, absence of an empty assistant bubble, reduced motion, failure cleanup, a real MCP answer's call arguments/results, reload persistence, collapsed defaults and mobile overflow without browser errors. Temporary verification data was removed.
+
 ## Shared protection, launcher and drafts — October 24, 2026
 
 The top-right RCP + AI button now opens the initially minimized chat panel. Its running LED border respects reduced-motion preferences, works on mobile and over either backdrop, and receives focus after minimizing. Drafts persist opportunistically in local storage per verified account/conversation (plus a separate new-chat draft); reload restores text and valid edit context. Storage failures do not block chat. Accepted messages clear the draft; rejected admissions retain it and restore any previous answer.
